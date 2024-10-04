@@ -17,41 +17,24 @@
 
 package org.openapitools.codegen.languages;
 
-import java.io.File;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import com.samskivert.mustache.Mustache;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
-import org.openapitools.codegen.CliOption;
-import org.openapitools.codegen.CodegenConstants;
-import org.openapitools.codegen.CodegenModel;
-import org.openapitools.codegen.CodegenOperation;
-import org.openapitools.codegen.CodegenParameter;
-import org.openapitools.codegen.CodegenProperty;
-import org.openapitools.codegen.CodegenType;
-import org.openapitools.codegen.SupportingFile;
-import org.openapitools.codegen.meta.features.ClientModificationFeature;
-import org.openapitools.codegen.meta.features.DocumentationFeature;
-import org.openapitools.codegen.meta.features.GlobalFeature;
-import org.openapitools.codegen.meta.features.ParameterFeature;
-import org.openapitools.codegen.meta.features.SchemaSupportFeature;
-import org.openapitools.codegen.meta.features.SecurityFeature;
-import org.openapitools.codegen.meta.features.WireFormatFeature;
+import org.openapitools.codegen.*;
+import org.openapitools.codegen.meta.features.*;
 import org.openapitools.codegen.model.ModelMap;
 import org.openapitools.codegen.model.ModelsMap;
 import org.openapitools.codegen.model.OperationMap;
 import org.openapitools.codegen.model.OperationsMap;
-import org.openapitools.codegen.utils.ProcessUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.util.*;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.sort;
 
@@ -97,26 +80,35 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
 
     protected static final String VENDOR_EXTENSION_BASE_NAME_LITERAL = "x-base-name-literal";
 
-    @Setter protected String dateLibrary = DateLibrary.JAVA8.value;
-    @Setter protected String requestDateConverter = RequestDateConverter.TO_JSON.value;
-    @Setter protected String collectionType = CollectionType.LIST.value;
+    @Setter
+    protected String dateLibrary = DateLibrary.JAVA8.value;
+    @Setter
+    protected String requestDateConverter = RequestDateConverter.TO_JSON.value;
+    @Setter
+    protected String collectionType = CollectionType.LIST.value;
     protected boolean useRxJava3 = false;
     protected boolean useCoroutines = false;
     // backwards compatibility for openapi configs that specify neither rx1 nor rx2
     // (mustache does not allow for boolean operators so we need this extra field)
     protected boolean doNotUseRxAndCoroutines = true;
     protected boolean generateRoomModels = false;
-    @Setter protected String roomModelPackage = "";
-    @Setter protected boolean omitGradleWrapper = false;
-    @Setter protected boolean generateOneOfAnyOfWrappers = true;
-    @Getter @Setter protected boolean failOnUnknownProperties = false;
+    @Setter
+    protected String roomModelPackage = "";
+    @Setter
+    protected boolean omitGradleWrapper = false;
+    @Setter
+    protected boolean generateOneOfAnyOfWrappers = true;
+    @Getter
+    @Setter
+    protected boolean failOnUnknownProperties = false;
 
     protected String authFolder;
 
-    @Getter protected SERIALIZATION_LIBRARY_TYPE serializationLibrary = SERIALIZATION_LIBRARY_TYPE.moshi;
+    @Getter
+    protected SERIALIZATION_LIBRARY_TYPE serializationLibrary = SERIALIZATION_LIBRARY_TYPE.kotlinx_serialization;
     public static final String SERIALIZATION_LIBRARY_DESC = "What serialization library to use: 'moshi' (default), or 'gson' or 'jackson' or 'kotlinx_serialization'";
 
-    public enum SERIALIZATION_LIBRARY_TYPE {moshi, gson, jackson, kotlinx_serialization}
+    public enum SERIALIZATION_LIBRARY_TYPE {moshi, jackson, kotlinx_serialization}
 
     public enum DateLibrary {
         STRING("string"),
@@ -165,27 +157,27 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
          * OAuth flows supported _only_ by client explicitly setting bearer token. The "flows" are not supported.
          */
         modifyFeatureSet(features -> features
-                .includeDocumentationFeatures(DocumentationFeature.Readme)
-                .excludeWireFormatFeatures(WireFormatFeature.XML, WireFormatFeature.PROTOBUF)
-                .securityFeatures(EnumSet.of(
-                        SecurityFeature.BasicAuth,
-                        SecurityFeature.ApiKey,
-                        SecurityFeature.BearerToken,
-                        SecurityFeature.OAuth2_AuthorizationCode,//retrofit only
-                        SecurityFeature.OAuth2_Implicit))
-                .excludeGlobalFeatures(
-                        GlobalFeature.XMLStructureDefinitions,
-                        GlobalFeature.Callbacks,
-                        GlobalFeature.LinkObjects,
-                        GlobalFeature.ParameterStyling
-                )
-                .excludeSchemaSupportFeatures(
-                        SchemaSupportFeature.Polymorphism
-                )
-                .excludeParameterFeatures(
-                        ParameterFeature.Cookie
-                )
-                .includeClientModificationFeatures(ClientModificationFeature.BasePath)
+                        .includeDocumentationFeatures(DocumentationFeature.Readme)
+                        .excludeWireFormatFeatures(WireFormatFeature.XML, WireFormatFeature.PROTOBUF)
+                        .securityFeatures(EnumSet.of(
+                                SecurityFeature.BasicAuth,
+                                SecurityFeature.ApiKey,
+                                SecurityFeature.BearerToken,
+                                SecurityFeature.OAuth2_AuthorizationCode,//retrofit only
+                                SecurityFeature.OAuth2_Implicit))
+                        .excludeGlobalFeatures(
+                                GlobalFeature.XMLStructureDefinitions,
+                                GlobalFeature.Callbacks,
+                                GlobalFeature.LinkObjects,
+                                GlobalFeature.ParameterStyling
+                        )
+                        .excludeSchemaSupportFeatures(
+//                        SchemaSupportFeature.Polymorphism
+                        )
+                        .excludeParameterFeatures(
+                                ParameterFeature.Cookie
+                        )
+                        .includeClientModificationFeatures(ClientModificationFeature.BasePath)
         );
 
         artifactId = "tidal-kotlin-client";
@@ -195,17 +187,17 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
         updateOption(CodegenConstants.ARTIFACT_ID, this.artifactId);
         updateOption(CodegenConstants.PACKAGE_NAME, this.packageName);
 
-        outputFolder = "generated-code" + File.separator + "kotlin-client";
+        outputFolder = "generated-code" + File.separator + "tidal-kotlin";
         modelTemplateFiles.put("model.mustache", ".kt");
-        if (generateRoomModels) {
-            modelTemplateFiles.put("model_room.mustache", ".kt");
-        }
+//        if (generateRoomModels) {
+//            modelTemplateFiles.put("model_room.mustache", ".kt");
+//        }
         apiTemplateFiles.put("api.mustache", ".kt");
         apiTestTemplateFiles.put("api_test.mustache", ".kt");
         modelTestTemplateFiles.put("model_test.mustache", ".kt");
         modelDocTemplateFiles.put("model_doc.mustache", ".md");
         apiDocTemplateFiles.put("api_doc.mustache", ".md");
-        embeddedTemplateDir = templateDir = "kotlin-client";
+        embeddedTemplateDir = templateDir = "tidal-kotlin";
         apiPackage = packageName + ".apis";
         modelPackage = packageName + ".models";
 
@@ -229,20 +221,20 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
         collectionType.setDefault(this.collectionType);
         cliOptions.add(collectionType);
 
-        supportedLibraries.put(JVM_KTOR, "Platform: Java Virtual Machine. HTTP client: Ktor 1.6.7. JSON processing: Gson, Jackson (default).");
-        supportedLibraries.put(JVM_OKHTTP4, "[DEFAULT] Platform: Java Virtual Machine. HTTP client: OkHttp 4.2.0 (Android 5.0+ and Java 8+). JSON processing: Moshi 1.8.0.");
-        supportedLibraries.put(JVM_SPRING_WEBCLIENT, "Platform: Java Virtual Machine. HTTP: Spring 5 (or 6 with useSpringBoot3 enabled) WebClient. JSON processing: Jackson.");
-        supportedLibraries.put(JVM_SPRING_RESTCLIENT, "Platform: Java Virtual Machine. HTTP: Spring 6 RestClient. JSON processing: Jackson.");
+//        supportedLibraries.put(JVM_KTOR, "Platform: Java Virtual Machine. HTTP client: Ktor 1.6.7. JSON processing: Gson, Jackson (default).");
+//        supportedLibraries.put(JVM_OKHTTP4, "[DEFAULT] Platform: Java Virtual Machine. HTTP client: OkHttp 4.2.0 (Android 5.0+ and Java 8+). JSON processing: Moshi 1.8.0.");
+//        supportedLibraries.put(JVM_SPRING_WEBCLIENT, "Platform: Java Virtual Machine. HTTP: Spring 5 (or 6 with useSpringBoot3 enabled) WebClient. JSON processing: Jackson.");
+//        supportedLibraries.put(JVM_SPRING_RESTCLIENT, "Platform: Java Virtual Machine. HTTP: Spring 6 RestClient. JSON processing: Jackson.");
         supportedLibraries.put(JVM_RETROFIT2, "Platform: Java Virtual Machine. HTTP client: Retrofit 2.6.2.");
         supportedLibraries.put(MULTIPLATFORM, "Platform: Kotlin multiplatform. HTTP client: Ktor 1.6.7. JSON processing: Kotlinx Serialization: 1.2.1.");
-        supportedLibraries.put(JVM_VOLLEY, "Platform: JVM for Android. HTTP client: Volley 1.2.1. JSON processing: gson 2.8.9");
-        supportedLibraries.put(JVM_VERTX, "Platform: Java Virtual Machine. HTTP client: Vert.x Web Client. JSON processing: Moshi, Gson or Jackson.");
+//        supportedLibraries.put(JVM_VOLLEY, "Platform: JVM for Android. HTTP client: Volley 1.2.1. JSON processing: gson 2.8.9");
+//        supportedLibraries.put(JVM_VERTX, "Platform: Java Virtual Machine. HTTP client: Vert.x Web Client. JSON processing: Moshi, Gson or Jackson.");
 
         CliOption libraryOption = new CliOption(CodegenConstants.LIBRARY, "Library template (sub-template) to use");
         libraryOption.setEnum(supportedLibraries);
         libraryOption.setDefault(JVM_OKHTTP4);
         cliOptions.add(libraryOption);
-        setLibrary(JVM_OKHTTP4);
+        setLibrary(JVM_RETROFIT2);
 
         CliOption requestDateConverter = new CliOption(REQUEST_DATE_CONVERTER, "JVM-Option. Defines in how to handle date-time objects that are used for a request (as query or parameter)");
         Map<String, String> requestDateConverterOptions = new HashMap<>();
@@ -252,20 +244,20 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
         requestDateConverter.setDefault(this.requestDateConverter);
         cliOptions.add(requestDateConverter);
 
-        cliOptions.add(CliOption.newBoolean(USE_RX_JAVA3, "Whether to use the RxJava3 adapter with the retrofit2 library."));
+//        cliOptions.add(CliOption.newBoolean(USE_RX_JAVA3, "Whether to use the RxJava3 adapter with the retrofit2 library."));
         cliOptions.add(CliOption.newBoolean(USE_COROUTINES, "Whether to use the Coroutines adapter with the retrofit2 library."));
-        cliOptions.add(CliOption.newBoolean(USE_SPRING_BOOT3, "Whether to use the Spring Boot 3 with the jvm-spring-webclient library."));
+//        cliOptions.add(CliOption.newBoolean(USE_SPRING_BOOT3, "Whether to use the Spring Boot 3 with the jvm-spring-webclient library."));
         cliOptions.add(CliOption.newBoolean(OMIT_GRADLE_PLUGIN_VERSIONS, "Whether to declare Gradle plugin versions in build files."));
-        cliOptions.add(CliOption.newBoolean(OMIT_GRADLE_WRAPPER, "Whether to omit Gradle wrapper for creating a sub project."));
-        cliOptions.add(CliOption.newBoolean(USE_SETTINGS_GRADLE, "Whether the project uses settings.gradle."));
-        cliOptions.add(CliOption.newBoolean(IDEA, "Add IntellJ Idea plugin and mark Kotlin main and test folders as source folders."));
+//        cliOptions.add(CliOption.newBoolean(OMIT_GRADLE_WRAPPER, "Whether to omit Gradle wrapper for creating a sub project."));
+//        cliOptions.add(CliOption.newBoolean(USE_SETTINGS_GRADLE, "Whether the project uses settings.gradle."));
+//        cliOptions.add(CliOption.newBoolean(IDEA, "Add IntellJ Idea plugin and mark Kotlin main and test folders as source folders."));
 
-        cliOptions.add(CliOption.newBoolean(MOSHI_CODE_GEN, "Whether to enable codegen with the Moshi library. Refer to the [official Moshi doc](https://github.com/square/moshi#codegen) for more info."));
-        cliOptions.add(CliOption.newBoolean(FAIL_ON_UNKNOWN_PROPERTIES, "Fail Jackson de-serialization on unknown properties", false));
+//        cliOptions.add(CliOption.newBoolean(MOSHI_CODE_GEN, "Whether to enable codegen with the Moshi library. Refer to the [official Moshi doc](https://github.com/square/moshi#codegen) for more info."));
+//        cliOptions.add(CliOption.newBoolean(FAIL_ON_UNKNOWN_PROPERTIES, "Fail Jackson de-serialization on unknown properties", false));
 
         cliOptions.add(CliOption.newBoolean(NULLABLE_RETURN_TYPE, "Nullable return type"));
 
-        cliOptions.add(CliOption.newBoolean(GENERATE_ROOM_MODELS, "Generate Android Room database models in addition to API models (JVM Volley library only)", false));
+//        cliOptions.add(CliOption.newBoolean(GENERATE_ROOM_MODELS, "Generate Android Room database models in addition to API models (JVM Volley library only)", false));
 
         cliOptions.add(CliOption.newBoolean(SUPPORT_ANDROID_API_LEVEL_25_AND_BELLOW, "[WARNING] This flag will generate code that has a known security vulnerability. It uses `kotlin.io.createTempFile` instead of `java.nio.file.Files.createTempFile` in order to support Android API level 25 and bellow. For more info, please check the following links https://github.com/OpenAPITools/openapi-generator/security/advisories/GHSA-23x4-m842-fmwf, https://github.com/OpenAPITools/openapi-generator/pull/9284"));
 
@@ -282,12 +274,12 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
 
     @Override
     public String getName() {
-        return "kotlin";
+        return "tidal-kotlin";
     }
 
     @Override
     public String getHelp() {
-        return "Generates a Kotlin client.";
+        return "Generates a Kotlin client for our beloved TIDAL overlords.";
     }
 
     public boolean getGenerateRoomModels() {
@@ -334,7 +326,7 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
      * Sets the serialization engine for Kotlin
      *
      * @param enumSerializationLibrary The string representation of the serialization library as defined by
-     *                                 {@link org.openapitools.codegen.languages.TidalKotlinClientCodegen.SERIALIZATION_LIBRARY_TYPE}
+     *                                 {@link SERIALIZATION_LIBRARY_TYPE}
      */
     public void setSerializationLibrary(final String enumSerializationLibrary) {
         try {
@@ -449,35 +441,36 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
         }
 
         commonSupportingFiles();
+        processJVMRetrofit2Library(infrastructureFolder);
 
-        switch (getLibrary()) {
-            case JVM_KTOR:
-                processJVMKtorLibrary(infrastructureFolder);
-                break;
-            case JVM_OKHTTP4:
-                processJVMOkHttpLibrary(infrastructureFolder);
-                break;
-            case JVM_VOLLEY:
-                processJVMVolleyLibrary(infrastructureFolder, requestFolder, authFolder);
-                break;
-            case JVM_RETROFIT2:
-                processJVMRetrofit2Library(infrastructureFolder);
-                break;
-            case JVM_SPRING_WEBCLIENT:
-                processJvmSpringWebClientLibrary(infrastructureFolder);
-                break;
-            case JVM_SPRING_RESTCLIENT:
-                processJvmSpringRestClientLibrary(infrastructureFolder);
-                break;
-            case MULTIPLATFORM:
-                processMultiplatformLibrary(infrastructureFolder);
-                break;
-            case JVM_VERTX:
-                processJVMVertXLibrary(infrastructureFolder);
-                break;
-            default:
-                break;
-        }
+//        switch (getLibrary()) {
+//            case JVM_KTOR:
+//                processJVMKtorLibrary(infrastructureFolder);
+//                break;
+//            case JVM_OKHTTP4:
+//                processJVMOkHttpLibrary(infrastructureFolder);
+//                break;
+//            case JVM_VOLLEY:
+//                processJVMVolleyLibrary(infrastructureFolder, requestFolder, authFolder);
+//                break;
+//            case JVM_RETROFIT2:
+//                processJVMRetrofit2Library(infrastructureFolder);
+//                break;
+//            case JVM_SPRING_WEBCLIENT:
+//                processJvmSpringWebClientLibrary(infrastructureFolder);
+//                break;
+//            case JVM_SPRING_RESTCLIENT:
+//                processJvmSpringRestClientLibrary(infrastructureFolder);
+//                break;
+//            case MULTIPLATFORM:
+//                processMultiplatformLibrary(infrastructureFolder);
+//                break;
+//            case JVM_VERTX:
+//                processJVMVertXLibrary(infrastructureFolder);
+//                break;
+//            default:
+//                break;
+//        }
 
         processDateLibrary();
         processRequestDateConverter();
@@ -497,27 +490,27 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
             additionalProperties.put("isList", true);
         }
 
-        if (usesRetrofit2Library()) {
-            boolean hasOAuthMethods = ProcessUtils.hasOAuthMethods(openAPI);
-
-            if (hasOAuthMethods) {
-                supportingFiles.add(new SupportingFile("auth/OAuth.kt.mustache", authFolder, "OAuth.kt"));
-                supportingFiles.add(new SupportingFile("auth/OAuthFlow.kt.mustache", authFolder, "OAuthFlow.kt"));
-                supportingFiles.add(new SupportingFile("auth/OAuthOkHttpClient.kt.mustache", authFolder, "OAuthOkHttpClient.kt"));
-            }
-
-            if (hasOAuthMethods || ProcessUtils.hasApiKeyMethods(openAPI)) {
-                supportingFiles.add(new SupportingFile("auth/ApiKeyAuth.kt.mustache", authFolder, "ApiKeyAuth.kt"));
-            }
-
-            if (ProcessUtils.hasHttpBearerMethods(openAPI)) {
-                supportingFiles.add(new SupportingFile("auth/HttpBearerAuth.kt.mustache", authFolder, "HttpBearerAuth.kt"));
-            }
-
-            if (ProcessUtils.hasHttpBasicMethods(openAPI)) {
-                supportingFiles.add(new SupportingFile("auth/HttpBasicAuth.kt.mustache", authFolder, "HttpBasicAuth.kt"));
-            }
-        }
+//        if (usesRetrofit2Library()) {
+//            boolean hasOAuthMethods = ProcessUtils.hasOAuthMethods(openAPI);
+//
+//            if (hasOAuthMethods) {
+//                supportingFiles.add(new SupportingFile("auth/OAuth.kt.mustache", authFolder, "OAuth.kt"));
+//                supportingFiles.add(new SupportingFile("auth/OAuthFlow.kt.mustache", authFolder, "OAuthFlow.kt"));
+//                supportingFiles.add(new SupportingFile("auth/OAuthOkHttpClient.kt.mustache", authFolder, "OAuthOkHttpClient.kt"));
+//            }
+//
+//            if (hasOAuthMethods || ProcessUtils.hasApiKeyMethods(openAPI)) {
+//                supportingFiles.add(new SupportingFile("auth/ApiKeyAuth.kt.mustache", authFolder, "ApiKeyAuth.kt"));
+//            }
+//
+//            if (ProcessUtils.hasHttpBearerMethods(openAPI)) {
+//                supportingFiles.add(new SupportingFile("auth/HttpBearerAuth.kt.mustache", authFolder, "HttpBearerAuth.kt"));
+//            }
+//
+//            if (ProcessUtils.hasHttpBasicMethods(openAPI)) {
+//                supportingFiles.add(new SupportingFile("auth/HttpBasicAuth.kt.mustache", authFolder, "HttpBasicAuth.kt"));
+//            }
+//        }
 
         additionalProperties.put("sanitizeGeneric", (Mustache.Lambda) (fragment, writer) -> {
             String content = fragment.execute();
@@ -646,9 +639,9 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
         supportingFiles.add(new SupportingFile("request/RequestFactory.mustache", requestFolder, "RequestFactory.kt"));
         supportingFiles.add(new SupportingFile("infrastructure/CollectionFormats.kt.mustache", infrastructureFolder, "CollectionFormats.kt"));
 
-        if (getSerializationLibrary() != SERIALIZATION_LIBRARY_TYPE.gson) {
-            throw new RuntimeException("This library currently only supports gson serialization. Try adding '--additional-properties serializationLibrary=gson' to your command.");
-        }
+//        if (getSerializationLibrary() != SERIALIZATION_LIBRARY_TYPE.gson) {
+//            throw new RuntimeException("This library currently only supports gson serialization. Try adding '--additional-properties serializationLibrary=gson' to your command.");
+//        }
         addSupportingSerializerAdapters(infrastructureFolder);
         supportingFiles.remove(new SupportingFile("jvm-common/infrastructure/Serializer.kt.mustache", infrastructureFolder, "Serializer.kt"));
 
@@ -657,49 +650,49 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
     private void addSupportingSerializerAdapters(final String infrastructureFolder) {
         supportingFiles.add(new SupportingFile("jvm-common/infrastructure/Serializer.kt.mustache", infrastructureFolder, "Serializer.kt"));
 
-        switch (getSerializationLibrary()) {
-            case moshi:
-                if (enumUnknownDefaultCase) {
-                    supportingFiles.add(new SupportingFile("jvm-common/infrastructure/SerializerHelper.kt.mustache", infrastructureFolder, "SerializerHelper.kt"));
-                }
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/ByteArrayAdapter.kt.mustache", infrastructureFolder, "ByteArrayAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/UUIDAdapter.kt.mustache", infrastructureFolder, "UUIDAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateAdapter.kt.mustache", infrastructureFolder, "LocalDateAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateTimeAdapter.kt.mustache", infrastructureFolder, "LocalDateTimeAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/OffsetDateTimeAdapter.kt.mustache", infrastructureFolder, "OffsetDateTimeAdapter.kt"));
-                addKotlinxDateTimeAdapters(infrastructureFolder);
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/BigDecimalAdapter.kt.mustache", infrastructureFolder, "BigDecimalAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/BigIntegerAdapter.kt.mustache", infrastructureFolder, "BigIntegerAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/URIAdapter.kt.mustache", infrastructureFolder, "URIAdapter.kt"));
-                break;
-
-            case gson:
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/ByteArrayAdapter.kt.mustache", infrastructureFolder, "ByteArrayAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateAdapter.kt.mustache", infrastructureFolder, "LocalDateAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateTimeAdapter.kt.mustache", infrastructureFolder, "LocalDateTimeAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/OffsetDateTimeAdapter.kt.mustache", infrastructureFolder, "OffsetDateTimeAdapter.kt"));
-                addKotlinxDateTimeAdapters(infrastructureFolder);
-                break;
-
-            case jackson:
-                break;
-
-            case kotlinx_serialization:
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/AtomicBooleanAdapter.kt.mustache", infrastructureFolder, "AtomicBooleanAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/AtomicIntegerAdapter.kt.mustache", infrastructureFolder, "AtomicIntegerAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/AtomicLongAdapter.kt.mustache", infrastructureFolder, "AtomicLongAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/URIAdapter.kt.mustache", infrastructureFolder, "URIAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/URLAdapter.kt.mustache", infrastructureFolder, "URLAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/BigIntegerAdapter.kt.mustache", infrastructureFolder, "BigIntegerAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/BigDecimalAdapter.kt.mustache", infrastructureFolder, "BigDecimalAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateAdapter.kt.mustache", infrastructureFolder, "LocalDateAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateTimeAdapter.kt.mustache", infrastructureFolder, "LocalDateTimeAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/OffsetDateTimeAdapter.kt.mustache", infrastructureFolder, "OffsetDateTimeAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/UUIDAdapter.kt.mustache", infrastructureFolder, "UUIDAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/StringBuilderAdapter.kt.mustache", infrastructureFolder, "StringBuilderAdapter.kt"));
-                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/proguard-rules.pro.mustache", "", "proguard-rules.pro"));
-                break;
-        }
+//        switch (getSerializationLibrary()) {
+//            case moshi:
+//                if (enumUnknownDefaultCase) {
+//                    supportingFiles.add(new SupportingFile("jvm-common/infrastructure/SerializerHelper.kt.mustache", infrastructureFolder, "SerializerHelper.kt"));
+//                }
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/ByteArrayAdapter.kt.mustache", infrastructureFolder, "ByteArrayAdapter.kt"));
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/UUIDAdapter.kt.mustache", infrastructureFolder, "UUIDAdapter.kt"));
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateAdapter.kt.mustache", infrastructureFolder, "LocalDateAdapter.kt"));
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateTimeAdapter.kt.mustache", infrastructureFolder, "LocalDateTimeAdapter.kt"));
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/OffsetDateTimeAdapter.kt.mustache", infrastructureFolder, "OffsetDateTimeAdapter.kt"));
+//                addKotlinxDateTimeAdapters(infrastructureFolder);
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/BigDecimalAdapter.kt.mustache", infrastructureFolder, "BigDecimalAdapter.kt"));
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/BigIntegerAdapter.kt.mustache", infrastructureFolder, "BigIntegerAdapter.kt"));
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/URIAdapter.kt.mustache", infrastructureFolder, "URIAdapter.kt"));
+//                break;
+//
+//            case gson:
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/ByteArrayAdapter.kt.mustache", infrastructureFolder, "ByteArrayAdapter.kt"));
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateAdapter.kt.mustache", infrastructureFolder, "LocalDateAdapter.kt"));
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateTimeAdapter.kt.mustache", infrastructureFolder, "LocalDateTimeAdapter.kt"));
+//                supportingFiles.add(new SupportingFile("jvm-common/infrastructure/OffsetDateTimeAdapter.kt.mustache", infrastructureFolder, "OffsetDateTimeAdapter.kt"));
+//                addKotlinxDateTimeAdapters(infrastructureFolder);
+//                break;
+//
+//            case jackson:
+//                break;
+//
+//            case kotlinx_serialization:
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/AtomicBooleanAdapter.kt.mustache", infrastructureFolder, "AtomicBooleanAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/AtomicIntegerAdapter.kt.mustache", infrastructureFolder, "AtomicIntegerAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/AtomicLongAdapter.kt.mustache", infrastructureFolder, "AtomicLongAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/URIAdapter.kt.mustache", infrastructureFolder, "URIAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/URLAdapter.kt.mustache", infrastructureFolder, "URLAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/BigIntegerAdapter.kt.mustache", infrastructureFolder, "BigIntegerAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/BigDecimalAdapter.kt.mustache", infrastructureFolder, "BigDecimalAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateAdapter.kt.mustache", infrastructureFolder, "LocalDateAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/LocalDateTimeAdapter.kt.mustache", infrastructureFolder, "LocalDateTimeAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/OffsetDateTimeAdapter.kt.mustache", infrastructureFolder, "OffsetDateTimeAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/UUIDAdapter.kt.mustache", infrastructureFolder, "UUIDAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/StringBuilderAdapter.kt.mustache", infrastructureFolder, "StringBuilderAdapter.kt"));
+        supportingFiles.add(new SupportingFile("jvm-common/infrastructure/proguard-rules.pro.mustache", "", "proguard-rules.pro"));
+//                break;
+//        }
     }
 
     private void addKotlinxDateTimeAdapters(final String infrastructureFolder) {
@@ -711,9 +704,9 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
 
     private void processJVMKtorLibrary(final String infrastructureFolder) {
         // in future kotlinx.serialization may be added
-        if (this.serializationLibrary != SERIALIZATION_LIBRARY_TYPE.gson && this.serializationLibrary != SERIALIZATION_LIBRARY_TYPE.jackson) {
-            this.serializationLibrary = SERIALIZATION_LIBRARY_TYPE.jackson;
-        }
+//        if (this.serializationLibrary != SERIALIZATION_LIBRARY_TYPE.gson && this.serializationLibrary != SERIALIZATION_LIBRARY_TYPE.jackson) {
+        this.serializationLibrary = SERIALIZATION_LIBRARY_TYPE.jackson;
+//        }
 
         additionalProperties.put(JVM, true);
         additionalProperties.put(JVM_KTOR, true);
@@ -762,7 +755,7 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
             additionalProperties.put(JVM_OKHTTP4, true);
         }
 
-        supportedLibraries.put(JVM_OKHTTP, "A workaround to use the same template folder for both 'jvm-okhttp3' and 'jvm-okhttp4'.");
+//        supportedLibraries.put(JVM_OKHTTP, "A workaround to use the same template folder for both 'jvm-okhttp3' and 'jvm-okhttp4'.");
         setLibrary(JVM_OKHTTP);
 
         // jvm specific supporting files
@@ -888,9 +881,11 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
     @Override
     public ModelsMap postProcessModels(ModelsMap objs) {
         ModelsMap objects = super.postProcessModels(objs);
+        List<ModelMap> allModels = objects.getModels();
 
-        for (ModelMap mo : objects.getModels()) {
+        for (ModelMap mo : allModels) {
             CodegenModel cm = mo.getModel();
+
             if (getGenerateRoomModels() || getGenerateOneOfAnyOfWrappers()) {
                 cm.vendorExtensions.put("x-has-data-class-body", true);
             }
@@ -914,6 +909,73 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
         }
 
         return objects;
+    }
+
+    @Override
+    public Map<String, ModelsMap> postProcessAllModels(Map<String, ModelsMap> objs) {
+
+        objs = super.postProcessAllModels(objs);
+        objs = super.updateAllModels(objs);
+
+        Map<String, List<String>> resourceRelationShips = new HashMap<>(Map.of());
+        Map<String, ModelsMap> finalObjs = objs;
+
+        // find all oneOf parents
+        objs.forEach((key, value) -> {
+            List<ModelMap> m = value.getModels();
+            for (ModelMap mo : m) {
+                CodegenModel cm = mo.getModel();
+
+                if (!cm.oneOf.isEmpty()) {
+                    String name = cm.classname;
+                    LOGGER.info("Model: " + cm.classname + " has oneOf: " + cm.oneOf.toString());
+                    for (String s : cm.oneOf) {
+                        if (resourceRelationShips.containsKey(name)) {
+                            // Key exists, so add the value to the existing list
+                            resourceRelationShips.get(name).add(s);
+                        } else {
+                            // Key doesn't exist, so create a new list and add the value
+                            List<String> newList = new ArrayList<>();
+                            newList.add(s);
+                            resourceRelationShips.put(name, newList);
+                        }
+                    }
+                }
+            }
+        });
+        LOGGER.info("Resource Relationships: " + resourceRelationShips.toString());
+        // find all oneOf children
+        List<String> combinedList = new ArrayList<>();
+        for (List<String> values : resourceRelationShips.values()) {
+            combinedList.addAll(values);
+        }
+        objs.forEach((key, value) -> {
+            List<ModelMap> m = value.getModels();
+            for (ModelMap mo : m) {
+                CodegenModel cm = mo.getModel();
+                LOGGER.info("Model: " + cm.classname);
+//                LOGGER.info("Model: " + cm.classname + resourceRelationShips.keySet().toString());
+
+                for (String className : combinedList) {
+                    if (cm.classname == className) {
+                        List<String> matchingKeys = new ArrayList<>();
+                        LOGGER.info("Model: " + cm.classname + " is in the list ");
+                        cm.vendorExtensions.put("x-has-oneof-relationship", true);
+                        cm.allParents = new ArrayList<String>();
+                        for (Map.Entry<String, List<String>> entry : resourceRelationShips.entrySet()) {
+                            List<String> values = entry.getValue();
+                            if (values.contains(className)) {
+                                matchingKeys.add(entry.getKey());
+                            }
+                        }
+                        cm.allParents.addAll(matchingKeys);
+
+                    }
+                }
+            }
+
+        });
+        return finalObjs;
     }
 
     private boolean usesRetrofit2Library() {

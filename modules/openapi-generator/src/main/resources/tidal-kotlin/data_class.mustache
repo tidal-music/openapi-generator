@@ -80,7 +80,7 @@ import {{packageName}}.infrastructure.ITransformForStorage
 {{#required}}{{>data_class_req_var}}{{/required}}{{^required}}{{>data_class_opt_var}}{{/required}}{{^-last}},{{/-last}}
 
 {{/allVars}}
-){{/discriminator}}{{#parent}}{{^serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{^serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{#serializableModel}}{{^parcelizeModels}} : Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{^serializableModel}}{{#parcelizeModels}} : Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{#serializableModel}}{{#parcelizeModels}} : Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#generateRoomModels}}{{#parent}}, {{/parent}}{{^discriminator}}{{^parent}}:{{/parent}} ITransformForStorage<{{classname}}RoomModel>{{/discriminator}}{{/generateRoomModels}}{{#vendorExtensions.x-has-data-class-body}} {
+){{/discriminator}}{{#vendorExtensions.x-has-oneof-relationship}}: {{#allParents}}{{.}}ResourceType{{^-last}}, {{/-last}}{{/allParents}}{{/vendorExtensions.x-has-oneof-relationship}}{{#parent}}{{^serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{^serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{#serializableModel}}{{^parcelizeModels}} : Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{^serializableModel}}{{#parcelizeModels}} : Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{#serializableModel}}{{#parcelizeModels}} : Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#generateRoomModels}}{{#parent}}, {{/parent}}{{^discriminator}}{{^parent}}:{{/parent}} ITransformForStorage<{{classname}}RoomModel>{{/discriminator}}{{/generateRoomModels}}{{#vendorExtensions.x-has-data-class-body}} {
 {{/vendorExtensions.x-has-data-class-body}}
 {{#generateRoomModels}}
     companion object { }
@@ -194,7 +194,7 @@ import {{packageName}}.infrastructure.ITransformForStorage
     companion object {
         var openapiFields = HashSet<String>()
         var openapiRequiredFields = HashSet<String>()
-      
+
         init {
             {{#allVars}}
             {{#-first}}
@@ -210,7 +210,7 @@ import {{packageName}}.infrastructure.ITransformForStorage
             openapiRequiredFields.add("{{baseName}}")
             {{/requiredVars}}
         }
-      
+
        /**
         * Validates the JSON Element and throws an exception if issues found
         *
@@ -227,7 +227,7 @@ import {{packageName}}.infrastructure.ITransformForStorage
             {{^hasChildren}}
             {{#requiredVars}}
             {{#-first}}
-      
+
             // check to make sure all required properties/fields are present in the JSON string
             for (requiredField in openapiRequiredFields) {
               requireNotNull(jsonElement!!.getAsJsonObject()[requiredField]) {
@@ -249,7 +249,7 @@ import {{packageName}}.infrastructure.ITransformForStorage
             if (!jsonObj.get("{{{baseName}}}").isJsonArray) {
               throw IllegalArgumentException(String.format("Expected the field `{{{baseName}}}` to be an array in the JSON string but got `%s`", jsonObj["{{{baseName}}}"].toString()))
             }
-      
+
             // validate the required field `{{{baseName}}}` (array)
             for (i in 0 until jsonObj.getAsJsonArray("{{{baseName}}}").size()) {
               {{{items.dataType}}}.validateJsonElement(jsonObj.getAsJsonArray("{{{baseName}}}").get(i))
@@ -262,7 +262,7 @@ import {{packageName}}.infrastructure.ITransformForStorage
                 require(jsonObj["{{{baseName}}}"].isJsonArray) {
                   String.format("Expected the field `{{{baseName}}}` to be an array in the JSON string but got `%s`", jsonObj["{{{baseName}}}"].toString())
                 }
-      
+
                 // validate the optional field `{{{baseName}}}` (array)
                 for (i in 0 until jsonObj.getAsJsonArray("{{{baseName}}}").size()) {
                   {{{items.dataType}}}.validateJsonElement(jsonObj.getAsJsonArray("{{{baseName}}}").get(i))
