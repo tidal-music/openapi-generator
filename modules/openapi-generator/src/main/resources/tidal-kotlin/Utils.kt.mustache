@@ -1,0 +1,19 @@
+package {{modelPackage}}
+
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
+
+fun getOneOfSerializer() = SerializersModule {
+{{#models}}
+{{#model}}
+{{#oneOf.size}}
+    polymorphic({{classname}}Resource::class) {
+{{#oneOf}}
+        subclass({{.}}::class, {{.}}.serializer())
+{{/oneOf}}
+    }
+{{/oneOf.size}}
+{{/model}}
+{{/models}}
+}
+

@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -97,7 +98,7 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
     @Setter
     protected boolean omitGradleWrapper = false;
     @Setter
-    protected boolean generateOneOfAnyOfWrappers = true;
+    protected boolean generateOneOfAnyOfWrappers = false;
     @Getter
     @Setter
     protected boolean failOnUnknownProperties = false;
@@ -429,9 +430,10 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
             additionalProperties.put(this.serializationLibrary.name(), true);
         }
 
-        if (additionalProperties.containsKey(GENERATE_ONEOF_ANYOF_WRAPPERS)) {
-            setGenerateOneOfAnyOfWrappers(Boolean.parseBoolean(additionalProperties.get(GENERATE_ONEOF_ANYOF_WRAPPERS).toString()));
-        }
+//        if (additionalProperties.containsKey(GENERATE_ONEOF_ANYOF_WRAPPERS)) {
+//            setGenerateOneOfAnyOfWrappers(Boolean.parseBoolean(additionalProperties.get(GENERATE_ONEOF_ANYOF_WRAPPERS).toString()));
+//        }
+        setGenerateOneOfAnyOfWrappers(false);
 
         if (additionalProperties.containsKey(FAIL_ON_UNKNOWN_PROPERTIES)) {
             setFailOnUnknownProperties(Boolean.parseBoolean(additionalProperties.get(FAIL_ON_UNKNOWN_PROPERTIES).toString()));
@@ -855,6 +857,8 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
     }
 
     private void commonSupportingFiles() {
+        LOGGER.info("adding file");
+        supportingFiles.add(new SupportingFile("Utils.kt.mustache", (sourceFolder + "." + modelPackage).replace(".", File.separator), "Utils.kt"));
         supportingFiles.add(new SupportingFile("README.mustache", "", "README.md"));
         if (getLibrary().equals(MULTIPLATFORM)) {
             supportingFiles.add(new SupportingFile("build.gradle.kts.mustache", "", "build.gradle.kts"));
@@ -913,69 +917,52 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
 
     @Override
     public Map<String, ModelsMap> postProcessAllModels(Map<String, ModelsMap> objs) {
-
         objs = super.postProcessAllModels(objs);
         objs = super.updateAllModels(objs);
 
-        Map<String, List<String>> resourceRelationShips = new HashMap<>(Map.of());
-        Map<String, ModelsMap> finalObjs = objs;
+        Map<String, List<String>> resourceRelationShips = new HashMap<>();
+        BiConsumer<String, String> addToResourceRelationships = (key, value) -> {
+            resourceRelationShips.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
+        };
 
-        // find all oneOf parents
+        // Find all oneOf parents
         objs.forEach((key, value) -> {
-            List<ModelMap> m = value.getModels();
-            for (ModelMap mo : m) {
-                CodegenModel cm = mo.getModel();
+            List<ModelMap> models = value.getModels();
+            for (ModelMap modelMap : models) {
+                CodegenModel codegenModel = modelMap.getModel();
 
-                if (!cm.oneOf.isEmpty()) {
-                    String name = cm.classname;
-                    LOGGER.info("Model: " + cm.classname + " has oneOf: " + cm.oneOf.toString());
-                    for (String s : cm.oneOf) {
-                        if (resourceRelationShips.containsKey(name)) {
-                            // Key exists, so add the value to the existing list
-                            resourceRelationShips.get(name).add(s);
-                        } else {
-                            // Key doesn't exist, so create a new list and add the value
-                            List<String> newList = new ArrayList<>();
-                            newList.add(s);
-                            resourceRelationShips.put(name, newList);
-                        }
-                    }
+                if (!codegenModel.oneOf.isEmpty()) {
+                    String className = codegenModel.classname;
+                    codegenModel.oneOf.forEach(oneOfClass -> addToResourceRelationships.accept(className, oneOfClass));
+                } else {
+                    // this field needs to be null to prevent mustache from getting triggered by an empty set
+                    codegenModel.oneOf = null;
                 }
             }
         });
-        LOGGER.info("Resource Relationships: " + resourceRelationShips.toString());
-        // find all oneOf children
-        List<String> combinedList = new ArrayList<>();
-        for (List<String> values : resourceRelationShips.values()) {
-            combinedList.addAll(values);
-        }
+
+        List<String> combinedList = resourceRelationShips.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+
+        // Find all oneOf children and assign relationships
         objs.forEach((key, value) -> {
-            List<ModelMap> m = value.getModels();
-            for (ModelMap mo : m) {
-                CodegenModel cm = mo.getModel();
-                LOGGER.info("Model: " + cm.classname);
-//                LOGGER.info("Model: " + cm.classname + resourceRelationShips.keySet().toString());
+            List<ModelMap> models = value.getModels();
+            for (ModelMap modelMap : models) {
+                CodegenModel codegenModel = modelMap.getModel();
+                String className = codegenModel.classname;
 
-                for (String className : combinedList) {
-                    if (cm.classname == className) {
-                        List<String> matchingKeys = new ArrayList<>();
-                        LOGGER.info("Model: " + cm.classname + " is in the list ");
-                        cm.vendorExtensions.put("x-has-oneof-relationship", true);
-                        cm.allParents = new ArrayList<String>();
-                        for (Map.Entry<String, List<String>> entry : resourceRelationShips.entrySet()) {
-                            List<String> values = entry.getValue();
-                            if (values.contains(className)) {
-                                matchingKeys.add(entry.getKey());
-                            }
-                        }
-                        cm.allParents.addAll(matchingKeys);
-
-                    }
+                if (combinedList.contains(className)) {
+                    codegenModel.vendorExtensions.put("x-has-oneof-parent", true);
+                    codegenModel.allVars.removeIf(p -> p.name.equals("type"));
+                    // Find all parents for the current class and add to allParents
+                    codegenModel.allParents = resourceRelationShips.entrySet().stream()
+                            .filter(entry -> entry.getValue().contains(className))
+                            .map(Map.Entry::getKey).collect(Collectors.toList());
                 }
             }
-
         });
-        return finalObjs;
+        return objs;
     }
 
     private boolean usesRetrofit2Library() {

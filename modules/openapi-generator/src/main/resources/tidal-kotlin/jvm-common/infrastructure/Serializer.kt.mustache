@@ -51,6 +51,17 @@ import org.threeten.bp.OffsetDateTime
 import java.util.UUID
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
+{{#models}}
+    {{#model}}
+    {{#oneOf.size}}
+import {{packageName}}.models.{{classname}}Resource
+{{#oneOf}}
+import {{packageName}}.models.{{.}}
+{{/oneOf}}
+{{/oneOf.size}}
+{{/model}}
+{{/models}}
 import java.net.URI
 import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
@@ -120,22 +131,23 @@ import java.util.concurrent.atomic.AtomicLong
     val kotlinSerializationAdapters: SerializersModule
         get() { return kotlinxSerializationAdapters }
 
+    val oneOfSerializers = SerializersModule {
+    {{#models}}
+        {{#model}}
+            {{#oneOf.size}}
+                polymorphic({{classname}}Resource::class) {
+                {{#oneOf}}
+                    subclass({{.}}::class, {{.}}.serializer())
+                {{/oneOf}}
+                }
+            {{/oneOf.size}}
+        {{/model}}
+    {{/models}}
+    }
+
     @JvmStatic
     val kotlinxSerializationAdapters = SerializersModule {
-        contextual(BigDecimal::class, BigDecimalAdapter)
-        contextual(BigInteger::class, BigIntegerAdapter)
-        {{^kotlinx-datetime}}
-        contextual(LocalDate::class, LocalDateAdapter)
-        contextual(LocalDateTime::class, LocalDateTimeAdapter)
-        contextual(OffsetDateTime::class, OffsetDateTimeAdapter)
-        {{/kotlinx-datetime}}
-        contextual(UUID::class, UUIDAdapter)
-        contextual(AtomicInteger::class, AtomicIntegerAdapter)
-        contextual(AtomicLong::class, AtomicLongAdapter)
-        contextual(AtomicBoolean::class, AtomicBooleanAdapter)
-        contextual(URI::class, URIAdapter)
-        contextual(URL::class, URLAdapter)
-        contextual(StringBuilder::class, StringBuilderAdapter)
+        {{#models.oneOf.size}}include(oneOfSerializers){{/models.oneOf.size}}
     }
 
     @Deprecated("Use Serializer.kotlinxSerializationJson instead", replaceWith = ReplaceWith("Serializer.kotlinxSerializationJson"))
