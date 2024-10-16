@@ -934,6 +934,7 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
                 if (!codegenModel.oneOf.isEmpty()) {
                     String className = codegenModel.classname;
                     codegenModel.oneOf.forEach(oneOfClass -> addToResourceRelationships.accept(className, oneOfClass));
+                    codegenModel.vendorExtensions.put("x-is-oneof-parent", true);
                 } else {
                     // this field needs to be null to prevent mustache from getting triggered by an empty set
                     codegenModel.oneOf = null;

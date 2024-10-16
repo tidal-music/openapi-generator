@@ -31,6 +31,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 import {{#serializableModel}}kotlinx.serialization.Serializable as KSerializable{{/serializableModel}}{{^serializableModel}}kotlinx.serialization.Serializable{{/serializableModel}}
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
+import kotlinx.serialization.Polymorphic
 {{#enumUnknownDefaultCase}}
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializer
@@ -66,6 +67,14 @@ import {{packageName}}.infrastructure.ITransformForStorage
  * @param {{{name}}} {{{description}}}
 {{/allVars}}
  */
+{{#vendorExtensions.x-is-oneof-parent}}
+    {{#kotlinx_serialization}}
+@Serializable
+@Polymorphic
+sealed interface {{classname}}
+    {{/kotlinx_serialization}}
+{{/vendorExtensions.x-is-oneof-parent}}
+{{^vendorExtensions.x-is-oneof-parent}}
 {{#parcelizeModels}}
 @Parcelize
 {{/parcelizeModels}}
@@ -80,7 +89,7 @@ import {{packageName}}.infrastructure.ITransformForStorage
 {{#required}}{{>data_class_req_var}}{{/required}}{{^required}}{{>data_class_opt_var}}{{/required}}{{^-last}},{{/-last}}
 
 {{/allVars}}
-){{/discriminator}}{{#vendorExtensions.x-has-oneof-parent}}: {{#allParents}}{{.}}Resource{{^-last}}, {{/-last}}{{/allParents}}{{/vendorExtensions.x-has-oneof-parent}}{{#parent}}{{^serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{^serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{#serializableModel}}{{^parcelizeModels}} : Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{^serializableModel}}{{#parcelizeModels}} : Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{#serializableModel}}{{#parcelizeModels}} : Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#generateRoomModels}}{{#parent}}, {{/parent}}{{^discriminator}}{{^parent}}:{{/parent}} ITransformForStorage<{{classname}}RoomModel>{{/discriminator}}{{/generateRoomModels}}{{#vendorExtensions.x-has-data-class-body}} {
+){{/discriminator}}{{#vendorExtensions.x-has-oneof-parent}}: {{#allParents}}{{.}}{{^-last}}, {{/-last}}{{/allParents}}{{/vendorExtensions.x-has-oneof-parent}}{{#parent}}{{^serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{^serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{#serializableModel}}{{^parcelizeModels}} : Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{^serializableModel}}{{#parcelizeModels}} : Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{#serializableModel}}{{#parcelizeModels}} : Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#generateRoomModels}}{{#parent}}, {{/parent}}{{^discriminator}}{{^parent}}:{{/parent}} ITransformForStorage<{{classname}}RoomModel>{{/discriminator}}{{/generateRoomModels}}{{#vendorExtensions.x-has-data-class-body}} {
 {{/vendorExtensions.x-has-data-class-body}}
 {{#generateRoomModels}}
     companion object { }
@@ -361,3 +370,4 @@ import {{packageName}}.infrastructure.ITransformForStorage
 {{#vendorExtensions.x-has-data-class-body}}
 }
 {{/vendorExtensions.x-has-data-class-body}}
+{{/vendorExtensions.x-is-oneof-parent}}

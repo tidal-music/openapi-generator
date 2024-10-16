@@ -55,7 +55,7 @@ import kotlinx.serialization.modules.polymorphic
 {{#models}}
     {{#model}}
     {{#oneOf.size}}
-import {{packageName}}.models.{{classname}}Resource
+import {{packageName}}.models.{{classname}}
 {{#oneOf}}
 import {{packageName}}.models.{{.}}
 {{/oneOf}}

@@ -7,7 +7,7 @@ fun getOneOfSerializer() = SerializersModule {
 {{#models}}
 {{#model}}
 {{#oneOf.size}}
-    polymorphic({{classname}}Resource::class) {
+    polymorphic({{classname}}::class) {
 {{#oneOf}}
         subclass({{.}}::class, {{.}}.serializer())
 {{/oneOf}}
