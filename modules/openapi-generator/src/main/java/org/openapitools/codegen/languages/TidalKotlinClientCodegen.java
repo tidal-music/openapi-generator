@@ -433,7 +433,7 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
 //        if (additionalProperties.containsKey(GENERATE_ONEOF_ANYOF_WRAPPERS)) {
 //            setGenerateOneOfAnyOfWrappers(Boolean.parseBoolean(additionalProperties.get(GENERATE_ONEOF_ANYOF_WRAPPERS).toString()));
 //        }
-        setGenerateOneOfAnyOfWrappers(false);
+        setGenerateOneOfAnyOfWrappers(true);
 
         if (additionalProperties.containsKey(FAIL_ON_UNKNOWN_PROPERTIES)) {
             setFailOnUnknownProperties(Boolean.parseBoolean(additionalProperties.get(FAIL_ON_UNKNOWN_PROPERTIES).toString()));
@@ -886,7 +886,10 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
     public ModelsMap postProcessModels(ModelsMap objs) {
         ModelsMap objects = super.postProcessModels(objs);
         List<ModelMap> allModels = objects.getModels();
-
+        for (ModelMap mo : allModels) {
+            CodegenModel cm = mo.getModel();
+            LOGGER.info("model: " + cm.classname);
+        }
         for (ModelMap mo : allModels) {
             CodegenModel cm = mo.getModel();
 
@@ -917,6 +920,7 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
 
     @Override
     public Map<String, ModelsMap> postProcessAllModels(Map<String, ModelsMap> objs) {
+        LOGGER.info("postProcessAllModels");
         objs = super.postProcessAllModels(objs);
         objs = super.updateAllModels(objs);
 
@@ -955,7 +959,23 @@ public class TidalKotlinClientCodegen extends AbstractKotlinCodegen {
 
                 if (combinedList.contains(className)) {
                     codegenModel.vendorExtensions.put("x-has-oneof-parent", true);
-                    codegenModel.allVars.removeIf(p -> p.name.equals("type"));
+                    codegenModel.vendorExtensions.put("x-has-serializable-type", "hello");
+                    int index = codegenModel.classname.indexOf("Resource");
+                    if (index != -1) {
+                        String serializableType =
+                                Character.toLowerCase(codegenModel.classname.charAt(0)) + codegenModel.classname.substring(1, index);
+                        codegenModel.vendorExtensions.put("x-has-serializable-type", serializableType);
+                    }
+
+                    codegenModel.allVars.stream()
+                            .filter(p -> Objects.equals(p.name, "type"))
+                            .forEach(p -> {
+                                LOGGER.info("Found type field in " + className);
+                                p.vendorExtensions.put("x-is-transient", true);
+                                LOGGER.info("VendorExtensions: " + p.vendorExtensions);
+                                LOGGER.info("model VendorExtensions: " + codegenModel.vendorExtensions);
+                            });
+//                    codegenModel.allVars.removeIf(p -> p.name.equals("type"));
                     // Find all parents for the current class and add to allParents
                     codegenModel.allParents = resourceRelationShips.entrySet().stream()
                             .filter(entry -> entry.getValue().contains(className))

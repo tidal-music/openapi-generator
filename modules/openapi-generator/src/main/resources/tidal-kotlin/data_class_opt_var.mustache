@@ -12,6 +12,7 @@
     @get:JsonProperty("{{{vendorExtensions.x-base-name-literal}}}")
     {{/jackson}}
     {{#kotlinx_serialization}}
+    {{#vendorExtensions.x-is-transient}}@Transient{{/vendorExtensions.x-is-transient}}
     {{^isEnum}}{{^isArray}}{{^isPrimitiveType}}{{^isModel}}@Contextual {{/isModel}}{{/isPrimitiveType}}{{/isArray}}{{/isEnum}}@SerialName(value = "{{{vendorExtensions.x-base-name-literal}}}")
     {{/kotlinx_serialization}}
     {{/multiplatform}}
