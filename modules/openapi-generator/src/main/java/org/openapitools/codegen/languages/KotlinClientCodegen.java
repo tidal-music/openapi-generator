@@ -18,10 +18,8 @@
 package org.openapitools.codegen.languages;
 
 import java.io.File;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -930,6 +928,72 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
         }
 
         return objects;
+    }
+
+    @Override
+    public Map<String, ModelsMap> postProcessAllModels(Map<String, ModelsMap> objs) {
+        objs = super.postProcessAllModels(objs);
+        objs = super.updateAllModels(objs);
+
+        Map<String, List<String>> resourceRelationShips = new HashMap<>();
+        BiConsumer<String, String> addToResourceRelationships = (key, value) -> {
+            resourceRelationShips.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
+        };
+
+        // Find all oneOf parents
+        objs.forEach((key, value) -> {
+            List<ModelMap> models = value.getModels();
+            for (ModelMap modelMap : models) {
+                CodegenModel codegenModel = modelMap.getModel();
+
+                if (!codegenModel.oneOf.isEmpty()) {
+                    String className = codegenModel.classname;
+                    codegenModel.oneOf.forEach(oneOfClass -> addToResourceRelationships.accept(className, oneOfClass));
+                    codegenModel.vendorExtensions.put("x-is-oneof-parent", true);
+                } else {
+                    // this field needs to be null to prevent mustache from getting triggered by an empty set
+                    codegenModel.oneOf = null;
+                }
+            }
+        });
+
+        List<String> combinedList = resourceRelationShips.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+
+        // Find all oneOf children and assign relationships
+        objs.forEach((key, value) -> {
+            List<ModelMap> models = value.getModels();
+            for (ModelMap modelMap : models) {
+                CodegenModel codegenModel = modelMap.getModel();
+                String className = codegenModel.classname;
+
+                if (combinedList.contains(className)) {
+                    codegenModel.vendorExtensions.put("x-has-oneof-parent", true);
+                    codegenModel.vendorExtensions.put("x-has-serializable-type", "hello");
+                    int index = codegenModel.classname.indexOf("Resource");
+                    if (index != -1) {
+                        String serializableType =
+                                Character.toLowerCase(codegenModel.classname.charAt(0)) + codegenModel.classname.substring(1, index);
+                        codegenModel.vendorExtensions.put("x-has-serializable-type", serializableType);
+                    }
+
+                    codegenModel.allVars.stream()
+                            .filter(p -> Objects.equals(p.name, "type"))
+                            .forEach(p -> {
+                                LOGGER.info("Found type field in " + className);
+                                p.vendorExtensions.put("x-is-transient", true);
+                                LOGGER.info("VendorExtensions: " + p.vendorExtensions);
+                                LOGGER.info("model VendorExtensions: " + codegenModel.vendorExtensions);
+                            });
+                    // Find all parents for the current class and add to allParents
+                    codegenModel.allParents = resourceRelationShips.entrySet().stream()
+                            .filter(entry -> entry.getValue().contains(className))
+                            .map(Map.Entry::getKey).collect(Collectors.toList());
+                }
+            }
+        });
+        return objs;
     }
 
     private boolean usesRetrofit2Library() {
