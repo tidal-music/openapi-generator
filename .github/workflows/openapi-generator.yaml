@@ -45,7 +45,7 @@ jobs:
         with:
           name: openapi-generator-cli.jar
           path: modules/openapi-generator-cli/target/openapi-generator-cli.jar
-          retention-days: 1
+          retention-days: 90
 
   # test:
   #   name: Unit tests
