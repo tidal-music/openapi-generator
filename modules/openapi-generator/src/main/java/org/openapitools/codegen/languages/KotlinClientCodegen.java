@@ -897,6 +897,9 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
             supportingFiles.add(new SupportingFile("gradle-wrapper.properties.mustache", "gradle.wrapper".replace(".", File.separator), "gradle-wrapper.properties"));
             supportingFiles.add(new SupportingFile("gradle-wrapper.jar", "gradle.wrapper".replace(".", File.separator), "gradle-wrapper.jar"));
         }
+        if (getSerializationLibrary().equals(SERIALIZATION_LIBRARY_TYPE.kotlinx_serialization) && getGenerateOneOfAnyOfWrappers()) {
+            supportingFiles.add(new SupportingFile("Utils.kt.mustache", (sourceFolder + "." + modelPackage).replace(".", File.separator), "Utils.kt"));
+        }
     }
 
     @Override
