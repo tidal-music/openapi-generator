@@ -933,38 +933,217 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
         return objects;
     }
 
+    private Map<String, Map<String, String>> analyzeChildClassesForDiscriminators(
+            Map<String, ModelsMap> objs, Map<String, List<String>> resourceRelationShips) {
+
+        Map<String, Map<String, String>> result = new HashMap<>();
+
+        for (Map.Entry<String, List<String>> parentEntry : resourceRelationShips.entrySet()) {
+            String parentName = parentEntry.getKey();
+            List<String> childNames = parentEntry.getValue();
+
+            LOGGER.info("Analyzing discriminator for parent {} with children: {}", parentName, childNames);
+
+            // Find common fields across all children that could be discriminators
+            Map<String, Map<String, String>> candidateDiscriminators = findCandidateDiscriminators(objs, childNames);
+
+            if (!candidateDiscriminators.isEmpty()) {
+                // Choose the best discriminator candidate
+                Map.Entry<String, Map<String, String>> bestCandidate = selectBestDiscriminator(candidateDiscriminators);
+                if (bestCandidate != null) {
+                    Map<String, String> discriminatorInfo = new HashMap<>();
+                    discriminatorInfo.put("property", bestCandidate.getKey());
+                    discriminatorInfo.putAll(bestCandidate.getValue());
+                    result.put(parentName, discriminatorInfo);
+                    LOGGER.info("Selected discriminator '{}' for parent {} with mappings: {}",
+                        bestCandidate.getKey(), parentName, bestCandidate.getValue());
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private Map<String, Map<String, String>> findCandidateDiscriminators(
+            Map<String, ModelsMap> objs, List<String> childNames) {
+
+        Map<String, Map<String, String>> candidates = new HashMap<>();
+
+        // Analyze each child class
+        for (String childName : childNames) {
+            ModelsMap childModelsMap = objs.get(childName);
+            if (childModelsMap != null) {
+                for (ModelMap modelMap : childModelsMap.getModels()) {
+                    CodegenModel childModel = modelMap.getModel();
+                    if (childModel.classname.equals(childName)) {
+
+                        // Look for enum properties that could be discriminators
+                        for (CodegenProperty prop : childModel.allVars) {
+                            if (prop.isEnum && prop.allowableValues != null && !prop.allowableValues.isEmpty()) {
+                                @SuppressWarnings("unchecked")
+                                List<String> enumValues = (List<String>) prop.allowableValues.get("values");
+                                if (enumValues != null && !enumValues.isEmpty()) {
+                                    // Try to find a discriminator value for this child
+                                    String discriminatorValue = inferDiscriminatorValue(childName, enumValues);
+                                    if (discriminatorValue != null) {
+                                        candidates.computeIfAbsent(prop.name, k -> new HashMap<>())
+                                            .put(childName, discriminatorValue);
+                                        LOGGER.info("Found candidate discriminator '{}' in {} with value '{}'",
+                                            prop.name, childName, discriminatorValue);
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        return candidates;
+    }
+
+    private String inferDiscriminatorValue(String className, List<String> enumValues) {
+        // Generic logic to infer discriminator value from class name and enum values
+
+        // Look for enum values that match the class name pattern
+        for (String enumValue : enumValues) {
+            if (enumValue.toUpperCase().contains(className.toUpperCase())) {
+                return enumValue;
+            }
+        }
+
+        // Look for class name patterns in enum values
+        String classUpper = className.toUpperCase();
+        for (String enumValue : enumValues) {
+            if (classUpper.contains(enumValue.replace("_", ""))) {
+                return enumValue;
+            }
+        }
+
+        // Special pattern recognition for common cases
+        if (className.equals("ThirdParty")) {
+            for (String enumValue : enumValues) {
+                if (enumValue.contains("THIRD") || enumValue.contains("PARTY")) {
+                    return enumValue;
+                }
+            }
+        }
+
+        if (className.equals("Tidal")) {
+            for (String enumValue : enumValues) {
+                if (enumValue.contains("TIDAL")) {
+                    return enumValue;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private Map.Entry<String, Map<String, String>> selectBestDiscriminator(
+            Map<String, Map<String, String>> candidates) {
+
+        // Prefer discriminators that have mappings for all children
+        Map.Entry<String, Map<String, String>> bestCandidate = null;
+        int maxMappings = 0;
+
+        for (Map.Entry<String, Map<String, String>> candidate : candidates.entrySet()) {
+            int mappingCount = candidate.getValue().size();
+            if (mappingCount > maxMappings) {
+                maxMappings = mappingCount;
+                bestCandidate = candidate;
+            }
+        }
+
+        return bestCandidate;
+    }
+
     @Override
     public Map<String, ModelsMap> postProcessAllModels(Map<String, ModelsMap> objs) {
+        LOGGER.info("postProcessAllModels");
         objs = super.postProcessAllModels(objs);
         objs = super.updateAllModels(objs);
 
         Map<String, List<String>> resourceRelationShips = new HashMap<>();
+        Map<String, Map<String, String>> oneOfDiscriminators = new HashMap<>();
         BiConsumer<String, String> addToResourceRelationships = (key, value) -> {
             resourceRelationShips.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
         };
 
-        // Find all oneOf parents
+        // Find all oneOf parents and build relationships
+        LOGGER.info("=== Starting oneOf parent detection ===");
         objs.forEach((key, value) -> {
             List<ModelMap> models = value.getModels();
             for (ModelMap modelMap : models) {
                 CodegenModel codegenModel = modelMap.getModel();
+                String className = codegenModel.classname;
+                LOGGER.info("Checking model {} for oneOf, has {} oneOf entries", className, codegenModel.oneOf != null ? codegenModel.oneOf.size() : 0);
 
                 if (!codegenModel.oneOf.isEmpty()) {
-                    String className = codegenModel.classname;
                     codegenModel.oneOf.forEach(oneOfClass -> addToResourceRelationships.accept(className, oneOfClass));
                     codegenModel.vendorExtensions.put("x-is-oneof-parent", true);
+
+                    // Default discriminator setup
+                    codegenModel.vendorExtensions.put("x-discriminator-property", "type");
+                    codegenModel.vendorExtensions.put("x-has-custom-discriminator", false);
+
+                    LOGGER.info("Found oneOf parent {} with children: {}", className, codegenModel.oneOf);
                 } else {
                     // this field needs to be null to prevent mustache from getting triggered by an empty set
                     codegenModel.oneOf = null;
                 }
             }
         });
+        LOGGER.info("=== oneOf parent detection complete, relationships: {} ===", resourceRelationShips);
+
+        // Generic discriminator detection based on child class analysis
+        Map<String, Map<String, String>> detectedDiscriminators = analyzeChildClassesForDiscriminators(objs, resourceRelationShips);
+
+        // Apply detected discriminators to parent models
+        for (Map.Entry<String, Map<String, String>> entry : detectedDiscriminators.entrySet()) {
+            String parentClassName = entry.getKey();
+            Map<String, String> discriminatorInfo = entry.getValue();
+
+            objs.forEach((key, value) -> {
+                List<ModelMap> models = value.getModels();
+                for (ModelMap modelMap : models) {
+                    CodegenModel codegenModel = modelMap.getModel();
+                    if (parentClassName.equals(codegenModel.classname)) {
+                        String discriminatorProperty = discriminatorInfo.get("property");
+                        codegenModel.vendorExtensions.put("x-discriminator-property", discriminatorProperty);
+                        codegenModel.vendorExtensions.put("x-has-custom-discriminator", !discriminatorProperty.equals("type"));
+
+                        // Set discriminator mapping as list for mustache iteration
+                        List<Map<String, String>> mappingList = new ArrayList<>();
+                        discriminatorInfo.entrySet().stream()
+                            .filter(e -> !e.getKey().equals("property"))
+                            .forEach(e -> {
+                                Map<String, String> item = new HashMap<>();
+                                item.put("className", e.getKey());
+                                item.put("discriminatorValue", e.getValue());
+                                mappingList.add(item);
+                            });
+
+                        if (!mappingList.isEmpty()) {
+                            codegenModel.vendorExtensions.put("x-discriminator-mapping", mappingList);
+                            LOGGER.info("Set x-discriminator-mapping list for {} to: {}", parentClassName, mappingList);
+                        }
+
+                        LOGGER.info("Configured {} with discriminator property '{}' and mapping: {}",
+                            parentClassName, discriminatorProperty, mappingList);
+                        break;
+                    }
+                }
+            });
+        }
 
         List<String> combinedList = resourceRelationShips.values().stream()
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
 
         // Find all oneOf children and assign relationships
+        final Map<String, Map<String, String>> finalDetectedDiscriminators = detectedDiscriminators;
         objs.forEach((key, value) -> {
             List<ModelMap> models = value.getModels();
             for (ModelMap modelMap : models) {
@@ -973,29 +1152,134 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
 
                 if (combinedList.contains(className)) {
                     codegenModel.vendorExtensions.put("x-has-oneof-parent", true);
-                    codegenModel.vendorExtensions.put("x-has-serializable-type", "hello");
-                    int index = codegenModel.classname.indexOf("Resource");
-                    if (index != -1) {
-                        String serializableType =
-                                Character.toLowerCase(codegenModel.classname.charAt(0)) + codegenModel.classname.substring(1, index);
-                        codegenModel.vendorExtensions.put("x-has-serializable-type", serializableType);
+
+                    // Find all parents and their discriminator info for this child
+                    List<String> parentClassNames = resourceRelationShips.entrySet().stream()
+                            .filter(entry -> entry.getValue().contains(className))
+                            .map(Map.Entry::getKey).collect(Collectors.toList());
+
+                    // Append oneOf parents to existing allParents (don't replace)
+                    if (codegenModel.allParents == null) {
+                        codegenModel.allParents = new ArrayList<>();
+                    }
+                    for (String parentName : parentClassNames) {
+                        if (!codegenModel.allParents.contains(parentName)) {
+                            codegenModel.allParents.add(parentName);
+                        }
                     }
 
+                    LOGGER.info("Updated allParents for {} to: {}", className, codegenModel.allParents);
+
+                    // Determine the correct @SerialName value for this child
+                    String serializableType = className.toLowerCase(); // better default fallback
+                    String discriminatorProperty = "type";
+                    boolean hasCustomDiscriminator = false;
+
+                    LOGGER.info("Processing child class {} with parents: {}", className, parentClassNames);
+                    LOGGER.info("Available detected discriminators: {}", finalDetectedDiscriminators.keySet());
+
+                    // Check if this is a Resource-based oneOf (standard pattern)
+                    int index = codegenModel.classname.indexOf("Resource");
+                    if (index != -1) {
+                        serializableType = Character.toLowerCase(codegenModel.classname.charAt(0)) +
+                                         codegenModel.classname.substring(1, index);
+                        LOGGER.info("Resource-based pattern detected for {}, serializableType: {}", className, serializableType);
+                    }
+                    // Check if any parent uses custom discriminator
+                    for (String parentName : parentClassNames) {
+                        LOGGER.info("Checking parent {} for discriminator info", parentName);
+                        Map<String, String> parentDiscriminatorInfo = finalDetectedDiscriminators.get(parentName);
+                        if (parentDiscriminatorInfo != null) {
+                            LOGGER.info("Found discriminator info for parent {}: {}", parentName, parentDiscriminatorInfo);
+                            discriminatorProperty = parentDiscriminatorInfo.get("property");
+                            hasCustomDiscriminator = !discriminatorProperty.equals("type");
+
+                            // Get the discriminator value for this specific child
+                            String childDiscriminatorValue = parentDiscriminatorInfo.get(className);
+                            if (childDiscriminatorValue != null) {
+                                serializableType = childDiscriminatorValue;
+                                LOGGER.info("Configured {} with @SerialName(\"{}\") based on detected discriminator",
+                                    className, childDiscriminatorValue);
+                            } else {
+                                LOGGER.info("No discriminator value found for child {} in parent {}", className, parentName);
+                            }
+                            break; // Use first parent's discriminator info
+                        } else {
+                            LOGGER.info("No discriminator info found for parent {}", parentName);
+                        }
+                    }
+
+
+                    // Mark appropriate discriminator field as transient
+                    final String finalDiscriminatorProperty = discriminatorProperty;
+                    final String finalClassName = className;
                     codegenModel.allVars.stream()
-                            .filter(p -> Objects.equals(p.name, "type"))
+                            .filter(p -> Objects.equals(p.name, finalDiscriminatorProperty))
                             .forEach(p -> {
-                                LOGGER.info("Found type field in " + className);
+                                LOGGER.info("Found {} field in {}", finalDiscriminatorProperty, finalClassName);
                                 p.vendorExtensions.put("x-is-transient", true);
                                 LOGGER.info("VendorExtensions: " + p.vendorExtensions);
                                 LOGGER.info("model VendorExtensions: " + codegenModel.vendorExtensions);
                             });
-                    // Find all parents for the current class and add to allParents
-                    codegenModel.allParents = resourceRelationShips.entrySet().stream()
-                            .filter(entry -> entry.getValue().contains(className))
-                            .map(Map.Entry::getKey).collect(Collectors.toList());
+
+                    // Store discriminator info for child models
+                    codegenModel.vendorExtensions.put("x-parent-discriminator-property", discriminatorProperty);
+                    codegenModel.vendorExtensions.put("x-parent-has-custom-discriminator", hasCustomDiscriminator);
+
+                    // If this oneOf uses a custom discriminator, child should also implement the interface that defines it
+                    // For example, if discriminator is "source" from LyricsProvider.Source, add LyricsProvider
+                    if (discriminatorProperty.equals("source") && !codegenModel.allParents.contains("LyricsProvider")) {
+                        codegenModel.allParents.add("LyricsProvider");
+                        LOGGER.info("Added LyricsProvider to allParents for {} due to source discriminator", className);
+
+                        // Fix field types for inherited fields - enum types should reference the parent interface
+                        codegenModel.allVars.stream()
+                                .filter(v -> "source".equals(v.name))
+                                .forEach(v -> {
+                                    // Mark this field to use the parent interface's enum type in templates
+                                    v.vendorExtensions.put("x-enum-parent-class", "LyricsProvider");
+                                    LOGGER.info("Marked {}.{} to use LyricsProvider.Source enum type", className, v.name);
+                                });
+                    }
+
+                    // Set @SerialName at class level only for standard discriminators (not custom ones)
+                    if (!hasCustomDiscriminator) {
+                        codegenModel.vendorExtensions.put("x-has-serializable-type", serializableType);
+                        LOGGER.info("Set class-level @SerialName for {} with standard discriminator: {}", className, serializableType);
+                    } else {
+                        LOGGER.info("Skipped class-level @SerialName for {} with custom discriminator", className);
+                    }
+
+                    LOGGER.info("Child {} configured with @SerialName(\"{}\")", className, serializableType);
                 }
             }
         });
+
+        // Fix @Contextual annotation for fields referencing interfaces with custom serializers
+        objs.forEach((key, value) -> {
+            List<ModelMap> models = value.getModels();
+            for (ModelMap modelMap : models) {
+                CodegenModel codegenModel = modelMap.getModel();
+
+                // Mark LyricsProvider interface to not have @Serializable (regular interface, not oneOf parent)
+                if ("LyricsProvider".equals(codegenModel.classname)) {
+                    codegenModel.vendorExtensions.put("x-is-regular-interface", true);
+                    LOGGER.info("Marked regular interface {} to skip @Serializable annotation", codegenModel.classname);
+                }
+
+                for (CodegenProperty var : codegenModel.allVars) {
+                    // If this field references LyricsAttributesProvider (or other custom serializer interfaces)
+                    // it should have @Contextual annotation regardless of isModel flag
+                    if ("LyricsAttributesProvider".equals(var.dataType)) {
+                        // Override isModel to false for this specific field so @Contextual gets added
+                        var.isModel = false;
+                        LOGGER.info("Fixed @Contextual annotation for field {}.{} of type {}",
+                            codegenModel.classname, var.name, var.dataType);
+                    }
+                }
+            }
+        });
+
         return objs;
     }
 
