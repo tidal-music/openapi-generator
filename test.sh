@@ -4,7 +4,7 @@ echo "Compiling"
 mvn clean package -DskipTests
 
 echo "Go to module"
-cd ~/work/tidal-sdk/tidal-sdk-android-private/userprofile
+cd [PATH_TO_SDK]/tidal-sdk-android/tidalapi
 
 echo "Run generate script"
-./bin/generate.sh clean.json
+./bin/generate-api.sh
