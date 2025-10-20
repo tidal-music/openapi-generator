@@ -1,0 +1,25 @@
+package {{modelPackage}}
+
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.contextual
+import kotlinx.serialization.modules.polymorphic
+
+fun getOneOfSerializer() = SerializersModule {
+{{#models}}
+{{#model}}
+{{#oneOf.size}}
+{{#vendorExtensions.x-has-custom-discriminator}}
+    contextual({{classname}}::class, {{classname}}Serializer)
+{{/vendorExtensions.x-has-custom-discriminator}}
+{{^vendorExtensions.x-has-custom-discriminator}}
+    polymorphic({{classname}}::class) {
+{{#oneOf}}
+        subclass({{.}}::class, {{.}}.serializer())
+{{/oneOf}}
+    }
+{{/vendorExtensions.x-has-custom-discriminator}}
+{{/oneOf.size}}
+{{/model}}
+{{/models}}
+}
+

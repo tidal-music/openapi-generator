@@ -1,0 +1,6 @@
+generatorName: tidal-kotlin
+outputDir: samples/client/petstore/tidal/kotlin
+inputSpec: modules/openapi-generator/src/test/resources/3_0/petstore.yaml
+templateDir: modules/openapi-generator/src/main/resources/tidal-kotlin
+additionalProperties:
+  hideGenerationTimestamp: "true"

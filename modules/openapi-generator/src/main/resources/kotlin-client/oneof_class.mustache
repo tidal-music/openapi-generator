@@ -30,6 +30,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 import {{#serializableModel}}kotlinx.serialization.Serializable as KSerializable{{/serializableModel}}{{^serializableModel}}kotlinx.serialization.Serializable{{/serializableModel}}
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
+import kotlinx.serialization.Polymorphic
 {{#enumUnknownDefaultCase}}
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializer
@@ -71,8 +72,19 @@ import java.io.IOException
 @Deprecated(message = "This schema is deprecated.")
 {{/isDeprecated}}
 {{>additionalModelTypeAnnotations}}
-{{#nonPublicApi}}internal {{/nonPublicApi}}data class {{classname}}(var actualInstance: Any? = null) {
-
+{{#nonPublicApi}}internal {{/nonPublicApi}}data class {{classname}}(
+{{^kotlinx_serialization}}
+    var actualInstance: Any? = null)
+{{/kotlinx_serialization}}
+{{#kotlinx_serialization}}
+    val resource: {{classname}}Resource? = null
+) {
+}
+@Serializable
+@Polymorphic
+sealed interface {{classname}}Resource
+{{/kotlinx_serialization}}
+{{^kotlinx_serialization}}
     class CustomTypeAdapterFactory : TypeAdapterFactory {
         override fun <T> create(gson: Gson, type: TypeToken<T>): TypeAdapter<T>? {
             if (!{{classname}}::class.java.isAssignableFrom(type.rawType)) {
@@ -237,3 +249,4 @@ import java.io.IOException
         }
     }
 }
+{{/kotlinx_serialization}}
