@@ -32,7 +32,8 @@ public class CodegenOperation {
             isRestfulIndex, isRestfulShow, isRestfulCreate, isRestfulUpdate, isRestfulDestroy,
             isRestful, isDeprecated, isCallbackRequest, uniqueItems, hasDefaultResponse = false, hasOnlyDefaultResponse = false, hasConstantParams = false,
             hasErrorResponseObject, // if 4xx, 5xx responses have at least one error object defined
-            hasSingleParam = false; // if the operation has only one parameter;
+            hasSingleParam = false, // if the operation has only one parameter;
+            useHttpAnnotation = false; // if true, use @HTTP annotation instead of @DELETE for Retrofit2
     public CodegenProperty returnProperty;
     public String path, operationId, returnType, returnFormat, httpMethod, returnBaseType,
             returnContainer, summary, unescapedNotes, notes, baseName, defaultResponse;

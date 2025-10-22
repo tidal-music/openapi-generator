@@ -1368,6 +1368,21 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
                     });
                 }
 
+                // For Retrofit2, handle DELETE methods with request body by using @HTTP annotation instead of @DELETE
+                if (usesRetrofit2Library() && "DELETE".equals(operation.httpMethod)) {
+                    boolean hasBodyParam = false;
+                    for (CodegenParameter param : operation.allParams) {
+                        if (param.isBodyParam) {
+                            hasBodyParam = true;
+                            break;
+                        }
+                    }
+                    if (hasBodyParam) {
+                        // Set flag to use @HTTP annotation instead of @DELETE
+                        operation.useHttpAnnotation = true;
+                    }
+                }
+
                 // modify the data type of binary form parameters to a more friendly type for ktor builds
                 if ((JVM_KTOR.equals(getLibrary()) || MULTIPLATFORM.equals(getLibrary())) && operation.allParams != null) {
                     for (CodegenParameter param : operation.allParams) {
