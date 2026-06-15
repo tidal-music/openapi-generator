@@ -32,6 +32,21 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
 import {{#serializableModel}}kotlinx.serialization.Serializable as KSerializable{{/serializableModel}}{{^serializableModel}}kotlinx.serialization.Serializable{{/serializableModel}}
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
+{{#vendorExtensions.x-is-oneof-parent}}
+{{^vendorExtensions.x-has-custom-discriminator}}
+import kotlinx.serialization.Polymorphic
+{{/vendorExtensions.x-has-custom-discriminator}}
+{{#vendorExtensions.x-has-custom-discriminator}}
+import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.json.JsonContentPolymorphicSerializer
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+{{/vendorExtensions.x-has-custom-discriminator}}
+{{/vendorExtensions.x-is-oneof-parent}}
+{{#vendorExtensions.x-has-oneof-parent}}
+import kotlinx.serialization.Transient
+{{/vendorExtensions.x-has-oneof-parent}}
 {{#enumUnknownDefaultCase}}
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializer
@@ -41,10 +56,10 @@ import kotlinx.serialization.encoding.Encoder
 {{/enumUnknownDefaultCase}}
 {{#hasEnums}}
 {{/hasEnums}}
-{{#discriminator}}
+{{^vendorExtensions.x-is-regular-interface}}{{#discriminator}}
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.JsonClassDiscriminator
-{{/discriminator}}
+{{/discriminator}}{{/vendorExtensions.x-is-regular-interface}}
 {{/kotlinx_serialization}}
 {{#parcelizeModels}}
 import android.os.Parcelable
@@ -74,10 +89,40 @@ import {{packageName}}.infrastructure.ITransformForStorage
  * @param {{{name}}} {{{description}}}
 {{/allVars}}
  */
+{{!-- TIDAL minimal oneOf support (TM-1215/TM-1216): render the union schema as a
+      bare polymorphic sealed interface; children declare it as a supertype below. --}}
+{{#vendorExtensions.x-is-oneof-parent}}
+{{^vendorExtensions.x-has-custom-discriminator}}
+@Serializable
+@Polymorphic
+sealed interface {{classname}}
+{{/vendorExtensions.x-has-custom-discriminator}}
+{{!-- TM-1216: a oneOf union whose discriminator propertyName is NOT the global "type"
+      (e.g. "source") cannot ride the classDiscriminator="type" runtime wiring. Render it as
+      a sealed interface backed by a JsonContentPolymorphicSerializer that reads the
+      discriminator field manually and selects the member's serializer. --}}
+{{#vendorExtensions.x-has-custom-discriminator}}
+@Serializable(with = {{classname}}Serializer::class)
+sealed interface {{classname}}
+
+object {{classname}}Serializer : JsonContentPolymorphicSerializer<{{classname}}>({{classname}}::class) {
+    override fun selectDeserializer(element: JsonElement): DeserializationStrategy<{{classname}}> {
+        val {{vendorExtensions.x-discriminator-property}} = element.jsonObject["{{vendorExtensions.x-discriminator-property}}"]?.jsonPrimitive?.content
+        return when ({{vendorExtensions.x-discriminator-property}}) {
+{{#vendorExtensions.x-discriminator-mapping}}
+            "{{discriminatorValue}}" -> {{className}}.serializer()
+{{/vendorExtensions.x-discriminator-mapping}}
+            else -> throw IllegalArgumentException("Unknown {{classname}} {{vendorExtensions.x-discriminator-property}}: ${{vendorExtensions.x-discriminator-property}}")
+        }
+    }
+}
+{{/vendorExtensions.x-has-custom-discriminator}}
+{{/vendorExtensions.x-is-oneof-parent}}
+{{^vendorExtensions.x-is-oneof-parent}}
 {{#parcelizeModels}}
 @Parcelize
 {{/parcelizeModels}}
-{{#multiplatform}}@Serializable{{/multiplatform}}{{#kotlinx_serialization}}{{#serializableModel}}@KSerializable{{/serializableModel}}{{^serializableModel}}@Serializable{{/serializableModel}}{{/kotlinx_serialization}}{{#moshi}}{{#moshiCodeGen}}@JsonClass(generateAdapter = true){{/moshiCodeGen}}{{/moshi}}{{#jackson}}{{#discriminator}}{{>typeInfoAnnotation}}{{/discriminator}}{{/jackson}}
+{{#multiplatform}}@Serializable{{/multiplatform}}{{#kotlinx_serialization}}{{^vendorExtensions.x-is-regular-interface}}{{#serializableModel}}@KSerializable{{/serializableModel}}{{^serializableModel}}@Serializable{{/serializableModel}}{{/vendorExtensions.x-is-regular-interface}}{{/kotlinx_serialization}}{{#moshi}}{{#moshiCodeGen}}@JsonClass(generateAdapter = true){{/moshiCodeGen}}{{/moshi}}{{#jackson}}{{#discriminator}}{{>typeInfoAnnotation}}{{/discriminator}}{{/jackson}}
 {{#isDeprecated}}
 @Deprecated(message = "This schema is deprecated.")
 {{/isDeprecated}}
@@ -86,13 +131,16 @@ import {{packageName}}.infrastructure.ITransformForStorage
 {{#vendorExtensions.x-class-extra-annotation}}
 {{{vendorExtensions.x-class-extra-annotation}}}
 {{/vendorExtensions.x-class-extra-annotation}}
-{{#kotlinx_serialization}}{{#discriminator}}
+{{#kotlinx_serialization}}{{^vendorExtensions.x-is-regular-interface}}{{#discriminator}}
 @OptIn(ExperimentalSerializationApi::class)
 @JsonClassDiscriminator(discriminator = "{{{discriminator.propertyName}}}")
-{{/discriminator}}
+{{/discriminator}}{{/vendorExtensions.x-is-regular-interface}}
 {{#additionalProperties.discriminatorValue}}
 @SerialName(value = {{#lambda.doublequote}}{{{additionalProperties.discriminatorValue}}}{{/lambda.doublequote}})
 {{/additionalProperties.discriminatorValue}}
+{{#vendorExtensions.x-has-serializable-type}}
+@SerialName(value = "{{vendorExtensions.x-has-serializable-type}}")
+{{/vendorExtensions.x-has-serializable-type}}
 {{/kotlinx_serialization}}
 {{#multiplatform}}{{#discriminator}}
 @OptIn(ExperimentalSerializationApi::class)
@@ -102,13 +150,13 @@ import {{packageName}}.infrastructure.ITransformForStorage
 @SerialName(value = {{#lambda.doublequote}}{{{additionalProperties.discriminatorValue}}}{{/lambda.doublequote}})
 {{/additionalProperties.discriminatorValue}}
 {{/multiplatform}}
-{{#nonPublicApi}}internal {{/nonPublicApi}}{{^nonPublicApi}}{{#explicitApi}}public {{/explicitApi}}{{/nonPublicApi}}{{#discriminator}}{{#kotlinx_serialization}}sealed class{{/kotlinx_serialization}}{{#multiplatform}}sealed class{{/multiplatform}}{{^multiplatform}}{{^kotlinx_serialization}}interface{{/kotlinx_serialization}}{{/multiplatform}}{{/discriminator}}{{^discriminator}}{{#hasVars}}data {{/hasVars}}class{{/discriminator}} {{classname}}{{^discriminator}} (
+{{#nonPublicApi}}internal {{/nonPublicApi}}{{^nonPublicApi}}{{#explicitApi}}public {{/explicitApi}}{{/nonPublicApi}}{{#vendorExtensions.x-is-regular-interface}}interface{{/vendorExtensions.x-is-regular-interface}}{{^vendorExtensions.x-is-regular-interface}}{{#discriminator}}{{#kotlinx_serialization}}sealed class{{/kotlinx_serialization}}{{#multiplatform}}sealed class{{/multiplatform}}{{^multiplatform}}{{^kotlinx_serialization}}interface{{/kotlinx_serialization}}{{/multiplatform}}{{/discriminator}}{{^discriminator}}{{#hasVars}}data {{/hasVars}}{{^hasVars}}{{#vendorExtensions.x-force-data-class}}data {{/vendorExtensions.x-force-data-class}}{{/hasVars}}class{{/discriminator}}{{/vendorExtensions.x-is-regular-interface}} {{classname}}{{^discriminator}} (
 
 {{#allVars}}
 {{#required}}{{>data_class_req_var}}{{/required}}{{^required}}{{>data_class_opt_var}}{{/required}}{{^-last}},{{/-last}}
 
 {{/allVars}}
-){{/discriminator}}{{#parent}}{{^serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#kotlinx_serialization}}(){{/kotlinx_serialization}}{{#multiplatform}}(){{/multiplatform}}{{#isArray}}(){{/isArray}}{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{^serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{#serializableModel}}{{^parcelizeModels}} : Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{^serializableModel}}{{#parcelizeModels}} : Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{#serializableModel}}{{#parcelizeModels}} : Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#generateRoomModels}}{{#parent}}, {{/parent}}{{^discriminator}}{{^parent}}:{{/parent}} ITransformForStorage<{{classname}}RoomModel>{{/discriminator}}{{/generateRoomModels}}{{#vendorExtensions.x-has-data-class-body}} {
+){{/discriminator}}{{#vendorExtensions.x-has-oneof-parent}} : {{#allParents}}{{.}}{{^-last}}, {{/-last}}{{/allParents}}{{/vendorExtensions.x-has-oneof-parent}}{{^vendorExtensions.x-has-oneof-parent}}{{#parent}}{{^serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#kotlinx_serialization}}(){{/kotlinx_serialization}}{{#multiplatform}}(){{/multiplatform}}{{#isArray}}(){{/isArray}}{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{^parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{^serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#parent}}{{#serializableModel}}{{#parcelizeModels}} : {{{parent}}}{{#isMap}}(){{/isMap}}{{#isArray}}(){{/isArray}}, Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{/vendorExtensions.x-has-oneof-parent}}{{^parent}}{{#serializableModel}}{{^parcelizeModels}} : Serializable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{^serializableModel}}{{#parcelizeModels}} : Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{^parent}}{{#serializableModel}}{{#parcelizeModels}} : Serializable, Parcelable{{/parcelizeModels}}{{/serializableModel}}{{/parent}}{{#generateRoomModels}}{{#parent}}, {{/parent}}{{^discriminator}}{{^parent}}:{{/parent}} ITransformForStorage<{{classname}}RoomModel>{{/discriminator}}{{/generateRoomModels}}{{#vendorExtensions.x-has-data-class-body}} {
 {{/vendorExtensions.x-has-data-class-body}}
 {{#generateRoomModels}}
     companion object { }
@@ -130,6 +178,10 @@ import {{packageName}}.infrastructure.ITransformForStorage
 {{#hasEnums}}
 {{#vars}}
 {{#isEnum}}
+{{!-- TM-1216: a property typed via a base interface's enum (x-enum-parent-class, e.g.
+      source: LyricsProvider.Source) must NOT declare its own nested enum; it reuses the
+      base's. --}}
+{{^vendorExtensions.x-enum-parent-class}}
     /**
      * {{{description}}}
      *
@@ -187,6 +239,7 @@ import {{packageName}}.infrastructure.ITransformForStorage
     }
     {{/enumUnknownDefaultCase}}
     {{/kotlinx_serialization}}
+{{/vendorExtensions.x-enum-parent-class}}
 {{/isEnum}}
 {{/vars}}
 {{/hasEnums}}
@@ -401,3 +454,4 @@ import {{packageName}}.infrastructure.ITransformForStorage
 {{#vendorExtensions.x-has-data-class-body}}
 }
 {{/vendorExtensions.x-has-data-class-body}}
+{{/vendorExtensions.x-is-oneof-parent}}
