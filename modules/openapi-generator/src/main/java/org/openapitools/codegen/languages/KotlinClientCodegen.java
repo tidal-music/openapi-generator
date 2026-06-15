@@ -1037,10 +1037,52 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
         boolean registeredOneOfParent = false;
         if (!stockGeneratesWrappers
                 && (getSerializationLibrary() == SERIALIZATION_LIBRARY_TYPE.kotlinx_serialization || getLibrary().equals(MULTIPLATFORM))) {
+            // Index every model by classname so we can resolve oneOf member names and
+            // a member's shared base schema (its `parent`) cheaply.
+            Map<String, CodegenModel> modelsByName = new HashMap<>();
+            for (Map.Entry<String, ModelsMap> modelsMap : objs.entrySet()) {
+                for (ModelMap mo : modelsMap.getValue().getModels()) {
+                    CodegenModel cm = mo.getModel();
+                    modelsByName.put(cm.classname, cm);
+                }
+            }
+
             for (Map.Entry<String, ModelsMap> modelsMap : objs.entrySet()) {
                 for (ModelMap mo : modelsMap.getValue().getModels()) {
                     CodegenModel parent = mo.getModel();
                     CodegenDiscriminator discriminator = parent.getDiscriminator();
+
+                    // --- Custom (non-`type`) discriminator oneOf parents (TM-1216) ---------
+                    //
+                    // The `type`-discriminated JSON:API "Included" union is handled by the
+                    // branch below: the discriminator lives ON the union schema, propertyName
+                    // is the global "type", and the children are wired by classDiscriminator
+                    // at runtime via a polymorphic SerializersModule.
+                    //
+                    // A second shape (e.g. Lyrics_Attributes.provider) is an INLINE oneOf with
+                    // NO discriminator of its own; the discriminator + mapping live on a NAMED
+                    // base schema (LyricsProvider, propertyName "source") that each oneOf member
+                    // allOf-references (member.parent == that base). The runtime Json is keyed
+                    // on classDiscriminator="type", so "source" cannot be wired the same way.
+                    // Instead the union is rendered as a sealed interface plus a per-type
+                    // JsonContentPolymorphicSerializer that reads the "source" field manually.
+                    //
+                    // Detection is propertyName-agnostic: we never hardcode "source". We take
+                    // the oneOf members' shared base schema, read ITS already-resolved
+                    // discriminator.mappedModels, and only treat it as a custom discriminator
+                    // when the propertyName is not the global "type".
+                    if (discriminator == null && parent.oneOf != null && !parent.oneOf.isEmpty()) {
+                        CodegenModel base = findSharedOneOfBaseWithDiscriminator(parent, modelsByName);
+                        if (base != null) {
+                            CodegenDiscriminator baseDisc = base.getDiscriminator();
+                            String discProp = baseDisc.getPropertyName();
+                            if (discProp != null && !discProp.equals("type")) {
+                                applyCustomDiscriminatorOneOf(parent, base, baseDisc, modelsByName);
+                                registeredOneOfParent = true;
+                                continue;
+                            }
+                        }
+                    }
 
                     if (discriminator == null || parent.oneOf == null || parent.oneOf.isEmpty()) {
                         continue;
@@ -1085,6 +1127,14 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
                         continue;
                     }
 
+                    // TM-1216: a custom-discriminator oneOf base (e.g. LyricsProvider) becomes a
+                    // plain interface whose discriminator field stays abstract, and its members
+                    // keep the field as a @Transient property. Skip the stock removal/SerialName
+                    // wiring for it so we don't strip "source" or stamp class-level @SerialName.
+                    if (Boolean.TRUE.equals(cm.vendorExtensions.get("x-keep-discriminator-field"))) {
+                        continue;
+                    }
+
                     // When using generateOneOfAnyOfWrappers and encountering oneOf, we keep discriminator properties,
                     // because single entity can be referenced in multiple "parent" entities,
                     // so discriminator for one might not be discriminator for another.
@@ -1118,6 +1168,29 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
                     }
                 }
             }
+
+            // TM-1216: any property typed as a custom-discriminator union (rendered as a
+            // sealed interface with a JsonContentPolymorphicSerializer) must be @Contextual
+            // so the runtime SerializersModule resolves it; clearing isModel makes the
+            // data_class var templates emit @Contextual for it (e.g. LyricsAttributes.provider).
+            java.util.Set<String> customDiscriminatorUnions = new java.util.HashSet<>();
+            for (Map.Entry<String, ModelsMap> modelsMap : objs.entrySet()) {
+                for (ModelMap mo : modelsMap.getValue().getModels()) {
+                    CodegenModel cm = mo.getModel();
+                    if (Boolean.TRUE.equals(cm.vendorExtensions.get("x-has-custom-discriminator"))) {
+                        customDiscriminatorUnions.add(cm.classname);
+                    }
+                }
+            }
+            if (!customDiscriminatorUnions.isEmpty()) {
+                for (Map.Entry<String, ModelsMap> modelsMap : objs.entrySet()) {
+                    for (ModelMap mo : modelsMap.getValue().getModels()) {
+                        getAllVarProperties(mo.getModel()).forEach(list -> list.stream()
+                                .filter(prop -> customDiscriminatorUnions.contains(prop.dataType))
+                                .forEach(prop -> prop.isModel = false));
+                    }
+                }
+            }
         }
 
         // TIDAL minimal oneOf support (TM-1215, Fix A): emit Utils.kt ONLY when the pass above
@@ -1138,6 +1211,121 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
 
     private Stream<List<CodegenProperty>> getAllVarProperties(CodegenModel model) {
         return Stream.of(model.vars, model.allVars, model.optionalVars, model.requiredVars, model.readOnlyVars, model.readWriteVars);
+    }
+
+    /**
+     * For an inline oneOf union with no discriminator of its own, find the base schema
+     * that every member allOf-references (member.parent) and that carries a resolved
+     * discriminator-with-mapping. Returns null unless all members share the same such base.
+     * (TM-1216 — custom-discriminator oneOf, e.g. Lyrics_Attributes.provider over LyricsProvider.)
+     */
+    private CodegenModel findSharedOneOfBaseWithDiscriminator(CodegenModel parent, Map<String, CodegenModel> modelsByName) {
+        CodegenModel sharedBase = null;
+        for (String memberName : parent.oneOf) {
+            CodegenModel member = modelsByName.get(memberName);
+            if (member == null || member.parent == null) {
+                return null;
+            }
+            CodegenModel base = modelsByName.get(member.parent);
+            if (base == null || base.getDiscriminator() == null
+                    || base.getDiscriminator().getMappedModels() == null
+                    || base.getDiscriminator().getMappedModels().isEmpty()) {
+                return null;
+            }
+            if (sharedBase == null) {
+                sharedBase = base;
+            } else if (sharedBase != base) {
+                return null;
+            }
+        }
+        return sharedBase;
+    }
+
+    /**
+     * Render a custom-discriminator oneOf union (e.g. LyricsAttributesProvider over the
+     * "source"-discriminated LyricsProvider base) as a sealed interface backed by a
+     * JsonContentPolymorphicSerializer. Mirrors the `type`-path vendor-extension contract
+     * but adds x-has-custom-discriminator + x-discriminator-property + x-discriminator-mapping,
+     * turns the base schema into a plain (x-is-regular-interface) interface that members
+     * declare alongside the union, and keeps the discriminator field (transient) typed via
+     * the base's enum (x-enum-parent-class).
+     */
+    private void applyCustomDiscriminatorOneOf(CodegenModel parent, CodegenModel base,
+            CodegenDiscriminator baseDisc, Map<String, CodegenModel> modelsByName) {
+        String discProp = baseDisc.getPropertyName();
+        parent.vendorExtensions.put("x-is-oneof-parent", true);
+        parent.vendorExtensions.put("x-has-custom-discriminator", true);
+        parent.vendorExtensions.put("x-discriminator-property", discProp);
+
+        // The union schema's merged allVars (name/commonTrackId/... from flattening the
+        // members) are not used by the sealed-interface render; clear the data-class body.
+        parent.vendorExtensions.remove("x-has-data-class-body");
+
+        // Build the serializer's when-branches from the base's resolved mapping, limited to
+        // the members of THIS oneOf, preserving the spec's mapping order.
+        List<Map<String, String>> mappingList = new ArrayList<>();
+        for (CodegenDiscriminator.MappedModel mappedModel : baseDisc.getMappedModels()) {
+            CodegenModel child = mappedModel.getModel();
+            String childName = child != null ? child.classname : mappedModel.getModelName();
+            if (!parent.oneOf.contains(childName)) {
+                continue;
+            }
+            Map<String, String> item = new HashMap<>();
+            item.put("className", childName);
+            item.put("discriminatorValue", mappedModel.getMappingName());
+            mappingList.add(item);
+        }
+        parent.vendorExtensions.put("x-discriminator-mapping", mappingList);
+
+        // The base schema (LyricsProvider) becomes a plain interface (no @Serializable,
+        // no @JsonClassDiscriminator) exposing the shared abstract properties + the
+        // discriminator enum. Keep its discriminator field so it stays in the interface.
+        base.vendorExtensions.put("x-is-regular-interface", true);
+        base.vendorExtensions.put("x-keep-discriminator-field", true);
+        // The interface_(req|opt)_var partials render in each VAR's context (CodegenProperty),
+        // where the model-level x-is-regular-interface flag is not visible. Kotlin interface
+        // members are implicitly abstract, so the `abstract` modifier (emitted for the stock
+        // sealed-class discriminator case) must be suppressed here. Mirror the flag onto every
+        // var so the partial can read it.
+        getAllVarProperties(base).forEach(list ->
+                list.forEach(prop -> prop.vendorExtensions.put("x-is-regular-interface", true)));
+
+        for (String memberName : parent.oneOf) {
+            CodegenModel child = modelsByName.get(memberName);
+            if (child == null) {
+                continue;
+            }
+            // member : Union, Base
+            child.vendorExtensions.put("x-has-oneof-parent", true);
+            if (child.allParents == null) {
+                child.allParents = new ArrayList<>();
+            }
+            if (!child.allParents.contains(parent.classname)) {
+                child.allParents.add(0, parent.classname);
+            }
+            if (!child.allParents.contains(base.classname)) {
+                child.allParents.add(base.classname);
+            }
+            // Do NOT set x-has-serializable-type: a custom discriminator carries no
+            // class-level @SerialName (the JsonContentPolymorphicSerializer selects).
+            // Keep the discriminator field but mark it @Transient and type it via the
+            // base's enum (Base.Source), matching the base interface's abstract property.
+            child.vendorExtensions.put("x-keep-discriminator-field", true);
+            // A member that only inherits properties from the base (no own vars) has
+            // hasVars=false, so the template would emit a plain `class`. The union members
+            // carry a constructor (allVars), so force `data class` to match the rendered
+            // shape of members that do declare own vars (e.g. ThirdPartyLyricsProvider).
+            if (child.allVars != null && !child.allVars.isEmpty()) {
+                child.vendorExtensions.put("x-force-data-class", true);
+            }
+            getAllVarProperties(child).forEach(list ->
+                    list.stream()
+                            .filter(prop -> prop.name.equals(discProp))
+                            .forEach(prop -> {
+                                prop.vendorExtensions.put("x-is-transient", true);
+                                prop.vendorExtensions.put("x-enum-parent-class", base.classname);
+                            }));
+        }
     }
 
     private boolean usesRetrofit2Library() {

@@ -8,11 +8,16 @@ fun getOneOfSerializer() = SerializersModule {
 {{#models}}
 {{#model}}
 {{#vendorExtensions.x-is-oneof-parent}}
+{{#vendorExtensions.x-has-custom-discriminator}}
+    contextual({{classname}}::class, {{classname}}Serializer)
+{{/vendorExtensions.x-has-custom-discriminator}}
+{{^vendorExtensions.x-has-custom-discriminator}}
     polymorphic({{classname}}::class) {
 {{#oneOf}}
         subclass({{.}}::class, {{.}}.serializer())
 {{/oneOf}}
     }
+{{/vendorExtensions.x-has-custom-discriminator}}
 {{/vendorExtensions.x-is-oneof-parent}}
 {{/model}}
 {{/models}}
