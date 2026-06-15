@@ -1,0 +1,19 @@
+package {{modelPackage}}
+
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.contextual
+import kotlinx.serialization.modules.polymorphic
+
+fun getOneOfSerializer() = SerializersModule {
+{{#models}}
+{{#model}}
+{{#vendorExtensions.x-is-oneof-parent}}
+    polymorphic({{classname}}::class) {
+{{#oneOf}}
+        subclass({{.}}::class, {{.}}.serializer())
+{{/oneOf}}
+    }
+{{/vendorExtensions.x-is-oneof-parent}}
+{{/model}}
+{{/models}}
+}
