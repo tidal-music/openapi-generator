@@ -1,5 +1,10 @@
 <h1 align="center">OpenAPI Generator</h1>
 
+> **This is the TIDAL fork of openapi-generator.** It carries a small set of
+> Kotlin-client / kotlinx.serialization patches on top of upstream v7.23.0.
+> Before adding any divergence, read **[`TIDAL_FORK.md`](./TIDAL_FORK.md)** —
+> it lists every patch, why it exists, and its upstream status, and explains
+> the goal of staying as close to upstream as possible.
 
 <div align="center">
 
