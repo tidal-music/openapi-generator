@@ -1,0 +1,39 @@
+openapi: 3.0.0
+info:
+  title: TM-1938 free-form map contextual value
+  version: 1.0.0
+paths: {}
+components:
+  schemas:
+    SomeModel:
+      type: object
+      properties:
+        id:
+          type: string
+    Color:
+      type: string
+      enum: [red, green, blue]
+    FreeFormMapHolder:
+      type: object
+      properties:
+        metadata:
+          type: object
+          additionalProperties: {}
+        typedModelMap:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/SomeModel'
+        primitiveMap:
+          type: object
+          additionalProperties:
+            type: string
+        enumMap:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Color'
+        nestedMap:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: string
