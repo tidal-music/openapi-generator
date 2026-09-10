@@ -964,6 +964,50 @@ public class KotlinClientCodegenModelTest {
     }
 
     @Test
+    public void freeFormMapContextualValueKotlinxSerialization() throws IOException {
+        File output = Files.createTempDirectory("test").toFile();
+        output.deleteOnExit();
+
+        final CodegenConfigurator configurator = new CodegenConfigurator()
+                .setGeneratorName("kotlin")
+                .setAdditionalProperties(new HashMap<>() {{
+                    put(CodegenConstants.MODEL_PACKAGE, "model");
+                    put(GENERATE_ONEOF_ANYOF_WRAPPERS, false);
+                    put(SERIALIZATION_LIBRARY, "kotlinx_serialization");
+                }})
+                .setInputSpec("src/test/resources/3_0/kotlin/tm1938-freeform-map.yaml")
+                .setOutputDir(output.getAbsolutePath().replace("\\", "/"));
+
+        final ClientOptInput clientOptInput = configurator.toClientOptInput();
+        new DefaultGenerator().opts(clientOptInput).generate();
+
+        final Path modelKt = Paths.get(output + "/src/main/kotlin/model/FreeFormMapHolder.kt");
+
+        // free-form map: @Contextual on the VALUE type argument, not the property
+        TestUtils.assertFileContains(modelKt,
+                "kotlin.collections.Map<kotlin.String, @Contextual kotlin.Any>");
+        // free-form map: NO property-level @Contextual
+        TestUtils.assertFileNotContains(modelKt,
+                "@Contextual @SerialName(value = \"metadata\")");
+        // typed model map: unchanged, no @Contextual anywhere
+        TestUtils.assertFileContains(modelKt,
+                "kotlin.collections.Map<kotlin.String, SomeModel>");
+        TestUtils.assertFileNotContains(modelKt, "@Contextual SomeModel");
+        // primitive map: unchanged, no @Contextual anywhere
+        TestUtils.assertFileContains(modelKt,
+                "kotlin.collections.Map<kotlin.String, kotlin.String>");
+        // enum-valued map: routed through dataType unchanged, no @Contextual
+        TestUtils.assertFileContains(modelKt,
+                "kotlin.collections.Map<kotlin.String, Color>");
+        TestUtils.assertFileNotContains(modelKt, "@Contextual Color");
+        // nested map: emitted exactly once (no duplicated map type), no @Contextual
+        TestUtils.assertFileContains(modelKt,
+                "kotlin.collections.Map<kotlin.String, kotlin.collections.Map<kotlin.String, kotlin.String>>");
+        TestUtils.assertFileNotContains(modelKt,
+                "kotlin.collections.Map<kotlin.String, kotlin.collections.Map<kotlin.String, kotlin.String>>kotlin.collections.Map");
+    }
+
+    @Test
     public void testCompanionObjectAdditionalProperty() {
         final KotlinClientCodegen codegen = new KotlinClientCodegen();
 
