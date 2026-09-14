@@ -1342,8 +1342,16 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
             for (CodegenOperation operation : ops) {
                 isResponseFile = isResponseFile || operation.isResponseFile;
 
-                if (JVM_RETROFIT2.equals(getLibrary()) && StringUtils.isNotEmpty(operation.path) && operation.path.startsWith("/")) {
-                    operation.path = operation.path.substring(1);
+                if (JVM_RETROFIT2.equals(getLibrary())) {
+                    if (StringUtils.isNotEmpty(operation.path) && operation.path.startsWith("/")) {
+                        operation.path = operation.path.substring(1);
+                    }
+                    if (operation.bodyParam != null && ("DELETE".equalsIgnoreCase(operation.httpMethod)
+                            || "GET".equalsIgnoreCase(operation.httpMethod)
+                            || "HEAD".equalsIgnoreCase(operation.httpMethod)
+                            || "OPTIONS".equalsIgnoreCase(operation.httpMethod))) {
+                        operation.vendorExtensions.put("x-retrofit-use-http-annotation", true);
+                    }
                 }
 
                 if (JVM_OKHTTP.equals(getLibrary()) || JVM_OKHTTP4.equals(getLibrary())) {
