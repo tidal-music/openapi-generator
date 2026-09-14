@@ -79,6 +79,44 @@ public class KotlinClientCodegenApiTest {
         };
     }
 
+    @DataProvider(name = "retrofitCoroutines")
+    public static Object[][] retrofitCoroutines() {
+        return new Object[][]{{false}, {true}};
+    }
+
+    @Test(dataProvider = "retrofitCoroutines")
+    public void testRetrofitRequestBodyAnnotations(boolean useCoroutines) throws IOException {
+        OpenAPI openAPI = readOpenAPI("3_0/kotlin/retrofit-request-bodies.yaml");
+        KotlinClientCodegen codegen = createCodegen(ClientLibrary.JVM_RETROFIT2);
+        if (useCoroutines) {
+            codegen.additionalProperties().put(KotlinClientCodegen.USE_COROUTINES, true);
+        }
+        DefaultGenerator generator = new DefaultGenerator();
+        enableOnlyApiGeneration(generator);
+
+        File api = generator.opts(createClientOptInput(openAPI, codegen)).generate().stream()
+                .filter(file -> file.getName().equals("DefaultApi.kt")).findAny().orElseThrow();
+
+        for (String verb : List.of("DELETE", "GET", "HEAD", "OPTIONS")) {
+            assertFileContains(api.toPath(), "@HTTP(method = \"" + verb + "\", path = \"with-body\", hasBody = true)");
+            assertFileNotContains(api.toPath(), "@" + verb + "(\"with-body\")");
+        }
+        for (String verb : List.of("POST", "PUT", "PATCH")) {
+            assertFileContains(api.toPath(), "@" + verb + "(\"with-body\")");
+            assertFileNotContains(api.toPath(), "@HTTP(method = \"" + verb + "\"");
+        }
+        for (String verb : List.of("delete", "get", "head", "options", "post", "put", "patch")) {
+            assertFileContains(api.toPath(), "fun " + verb + "WithBody(@Body payload: kotlin.String): "
+                    + (useCoroutines ? "Response<Unit>" : "Call<Unit>"));
+            assertFileContains(api.toPath(), "@" + verb.toUpperCase(java.util.Locale.ROOT) + "(\"without-body\")");
+            assertFileContains(api.toPath(), "fun " + verb + "WithoutBody()");
+        }
+        assertFileNotContains(api.toPath(), "path = \"without-body\"");
+        assertFileContains(api.toPath(), "@HTTP(method = \"DELETE\", path = \"optional-body\", hasBody = true)");
+        assertFileContains(api.toPath(), "fun deleteOptionalBody(@Body payload: kotlin.String? = null)");
+        assertFileNotContains(api.toPath(), "@DELETE(\"optional-body\")");
+    }
+
     @Test(dataProvider = "useResponseAsReturnType")
     public void testUseResponseAsReturnType(Object useResponseAsReturnType, String expectedResponse, String expectedUnitResponse) throws IOException {
         OpenAPI openAPI = readOpenAPI("3_0/kotlin/petstore.yaml");
