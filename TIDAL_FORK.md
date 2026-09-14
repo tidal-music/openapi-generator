@@ -36,13 +36,19 @@ risk. Minimize it:
 
 All current patches are in the **kotlin-client** generator
 (`modules/openapi-generator/src/main/resources/kotlin-client/` and
-`.../languages/KotlinClientCodegen.java`) and target
-**kotlinx.serialization** output.
+`.../languages/KotlinClientCodegen.java`). Model patches target
+**kotlinx.serialization** output; the Retrofit annotation patch applies to all
+serialization libraries.
 
 | Patch | Why | Key files | Introduced | Upstream status |
 |---|---|---|---|---|
 | **oneOf → sealed interface + `JsonContentPolymorphic`** | Upstream's Kotlin client does not generate working kotlinx.serialization polymorphism for `oneOf` schemas that use a **custom (non-`type`) discriminator**, or that share children across schemas. This patch wires oneOf children into a sealed interface and emits a `JsonContentPolymorphic` serializer so the tidalapi models deserialize. | `KotlinClientCodegen.java`, `Utils.kt.mustache`, `data_class.mustache`, `data_class_{req,opt}_var.mustache`, `interface_{req,opt}_var.mustache` | PR #2 (`95ca29a`, `8fafac6`) | **Not upstreamed.** Candidate for upstreaming; needs re-port onto upstream's plainer templates. |
 | **`@Contextual` on free-form map value types** | For `additionalProperties: {}` maps, upstream emits a property-level `@Contextual`, which the kotlinx compiler plugin ignores → runtime crash *"Serializer for element of type kotlin.Any has not been found"*. This patch moves `@Contextual` onto the map **value type** (`Map<String, @Contextual Any>`). Replaces a manual post-generation hand-patch that used to live in tidal-sdk-android. | `data_class_{req,opt}_var.mustache`, `interface_{req,opt}_var.mustache` (+ test `KotlinClientCodegenModelTest.java`, `tm1938-freeform-map.yaml`) | PR #3 (`e4eb4ee`, `1b3b1ed`), TM-1938 | **Not upstreamed.** Same bug exists in upstream `master` (zero `isMap` handling); worth upstreaming, needs re-port onto upstream's plainer templates (no `x-is-transient` / `x-is-regular-interface`). |
+| **Retrofit `@HTTP` for request bodies on body-less verbs** | Bare `@DELETE`, `@GET`, `@HEAD`, and `@OPTIONS` reject `@Body` during Retrofit method parsing. Operations with a body parameter now use `@HTTP(method = "…", path = "…", hasBody = true)`; body-less operations and POST/PUT/PATCH keep their original annotations. | `KotlinClientCodegen.java`, `libraries/jvm-retrofit2/api.mustache`, `KotlinClientCodegenApiTest.java`, `retrofit-request-bodies.yaml` | [PR #5](https://github.com/tidal-music/openapi-generator/pull/5) | **Upstreamable.** The same limitation exists in upstream `master` (`994a84297b0d`) and latest release `v7.25.0`, checked 2026-09-14. Re-port the Java signal and template branch. |
+
+The Retrofit annotation patch fixes method parsing. OkHttp still rejects GET
+and HEAD request bodies when constructing requests; DELETE and OPTIONS request
+bodies are supported.
 
 Tidal-specific vendor extensions referenced by these templates
 (`x-is-transient`, `x-is-regular-interface`) also originate in this fork's

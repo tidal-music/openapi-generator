@@ -1,0 +1,114 @@
+openapi: 3.0.3
+info:
+  title: Retrofit request body annotations
+  version: 1.0.0
+paths:
+  /with-body:
+    delete:
+      operationId: deleteWithBody
+      requestBody:
+        $ref: '#/components/requestBodies/Payload'
+      responses:
+        '204':
+          description: Success
+    get:
+      operationId: getWithBody
+      requestBody:
+        $ref: '#/components/requestBodies/Payload'
+      responses:
+        '204':
+          description: Success
+    head:
+      operationId: headWithBody
+      requestBody:
+        $ref: '#/components/requestBodies/Payload'
+      responses:
+        '204':
+          description: Success
+    options:
+      operationId: optionsWithBody
+      requestBody:
+        $ref: '#/components/requestBodies/Payload'
+      responses:
+        '204':
+          description: Success
+    post:
+      operationId: postWithBody
+      requestBody:
+        $ref: '#/components/requestBodies/Payload'
+      responses:
+        '204':
+          description: Success
+    put:
+      operationId: putWithBody
+      requestBody:
+        $ref: '#/components/requestBodies/Payload'
+      responses:
+        '204':
+          description: Success
+    patch:
+      operationId: patchWithBody
+      requestBody:
+        $ref: '#/components/requestBodies/Payload'
+      responses:
+        '204':
+          description: Success
+  /without-body:
+    delete:
+      operationId: deleteWithoutBody
+      responses:
+        '204':
+          description: Success
+    get:
+      operationId: getWithoutBody
+      responses:
+        '204':
+          description: Success
+    head:
+      operationId: headWithoutBody
+      responses:
+        '204':
+          description: Success
+    options:
+      operationId: optionsWithoutBody
+      responses:
+        '204':
+          description: Success
+    post:
+      operationId: postWithoutBody
+      responses:
+        '204':
+          description: Success
+    put:
+      operationId: putWithoutBody
+      responses:
+        '204':
+          description: Success
+    patch:
+      operationId: patchWithoutBody
+      responses:
+        '204':
+          description: Success
+  /optional-body:
+    delete:
+      operationId: deleteOptionalBody
+      requestBody:
+        x-codegen-request-body-name: payload
+        required: false
+        content:
+          text/plain:
+            schema:
+              type: string
+              nullable: true
+      responses:
+        '204':
+          description: Success
+components:
+  requestBodies:
+    Payload:
+      x-codegen-request-body-name: payload
+      required: true
+      content:
+        text/plain:
+          schema:
+            type: string
