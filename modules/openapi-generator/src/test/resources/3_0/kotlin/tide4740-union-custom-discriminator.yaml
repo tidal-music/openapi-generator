@@ -1,0 +1,40 @@
+openapi: 3.0.1
+info:
+  title: TIDE-4740 oneOf union with its own non-type discriminator
+  version: 1.0.0
+paths: {}
+components:
+  schemas:
+    LyricsProvider:
+      type: object
+      discriminator:
+        propertyName: source
+        mapping:
+          THIRD_PARTY: '#/components/schemas/ThirdPartyLyricsProvider'
+          TIDAL: '#/components/schemas/TidalLyricsProvider'
+      oneOf:
+        - $ref: '#/components/schemas/TidalLyricsProvider'
+        - $ref: '#/components/schemas/ThirdPartyLyricsProvider'
+    TidalLyricsProvider:
+      type: object
+      required: [source]
+      properties:
+        name:
+          type: string
+        source:
+          type: string
+          enum: [TIDAL]
+    ThirdPartyLyricsProvider:
+      type: object
+      required: [source, lyricsId]
+      properties:
+        lyricsId:
+          type: string
+        source:
+          type: string
+          enum: [THIRD_PARTY]
+    LyricsAttributes:
+      type: object
+      properties:
+        provider:
+          $ref: '#/components/schemas/LyricsProvider'
