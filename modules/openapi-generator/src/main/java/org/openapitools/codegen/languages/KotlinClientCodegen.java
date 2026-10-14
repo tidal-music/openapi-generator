@@ -1088,6 +1088,17 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
                         continue;
                     }
 
+                    // TIDE-4740: the discriminator can also live ON the oneOf union itself with a
+                    // non-`type` propertyName (e.g. LyricsProvider oneOf [TidalLyricsProvider,
+                    // ThirdPartyLyricsProvider] discriminated on "source"). The `type` path below
+                    // would key it on classDiscriminator="type" at runtime, so route it to the
+                    // same JsonContentPolymorphicSerializer rendering as the TM-1216 shape.
+                    if (!"type".equals(discriminator.getPropertyName())) {
+                        applyUnionDiscriminatorOneOf(parent, discriminator);
+                        registeredOneOfParent = true;
+                        continue;
+                    }
+
                     // Mark the union schema so the template renders a `sealed interface`.
                     parent.vendorExtensions.put("x-is-oneof-parent", true);
                     registeredOneOfParent = true;
@@ -1239,6 +1250,43 @@ public class KotlinClientCodegen extends AbstractKotlinCodegen {
             }
         }
         return sharedBase;
+    }
+
+    /**
+     * Render a oneOf union that carries its own non-`type` discriminator (e.g. LyricsProvider
+     * discriminated on "source") as a sealed interface backed by a
+     * JsonContentPolymorphicSerializer. Members implement the union and keep the
+     * discriminator as a regular serialized property, so it round-trips on encode and decode.
+     * (TIDE-4740 — the union-level counterpart of {@link #applyCustomDiscriminatorOneOf}.)
+     */
+    private void applyUnionDiscriminatorOneOf(CodegenModel parent, CodegenDiscriminator discriminator) {
+        parent.vendorExtensions.put("x-is-oneof-parent", true);
+        parent.vendorExtensions.put("x-has-custom-discriminator", true);
+        parent.vendorExtensions.put("x-discriminator-property", discriminator.getPropertyName());
+        // Skip the stock discriminator pass, which would strip the property from the members.
+        parent.vendorExtensions.put("x-keep-discriminator-field", true);
+        parent.vendorExtensions.remove("x-has-data-class-body");
+
+        List<Map<String, String>> mappingList = new ArrayList<>();
+        for (CodegenDiscriminator.MappedModel mappedModel : discriminator.getMappedModels()) {
+            CodegenModel child = mappedModel.getModel();
+            if (child == null) {
+                continue;
+            }
+            Map<String, String> item = new HashMap<>();
+            item.put("className", child.classname);
+            item.put("discriminatorValue", mappedModel.getMappingName());
+            mappingList.add(item);
+
+            child.vendorExtensions.put("x-has-oneof-parent", true);
+            if (child.allParents == null) {
+                child.allParents = new ArrayList<>();
+            }
+            if (!child.allParents.contains(parent.classname)) {
+                child.allParents.add(parent.classname);
+            }
+        }
+        parent.vendorExtensions.put("x-discriminator-mapping", mappingList);
     }
 
     /**

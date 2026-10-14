@@ -1008,6 +1008,52 @@ public class KotlinClientCodegenModelTest {
     }
 
     @Test
+    public void unionLevelCustomDiscriminatorKotlinxSerialization() throws IOException {
+        File output = Files.createTempDirectory("test").toFile();
+        output.deleteOnExit();
+
+        final CodegenConfigurator configurator = new CodegenConfigurator()
+                .setGeneratorName("kotlin")
+                .setAdditionalProperties(new HashMap<>() {{
+                    put(CodegenConstants.MODEL_PACKAGE, "model");
+                    put(SERIALIZATION_LIBRARY, "kotlinx_serialization");
+                }})
+                .setInputSpec("src/test/resources/3_0/kotlin/tide4740-union-custom-discriminator.yaml")
+                .setOutputDir(output.getAbsolutePath().replace("\\", "/"));
+
+        final ClientOptInput clientOptInput = configurator.toClientOptInput();
+        new DefaultGenerator().opts(clientOptInput).generate();
+
+        final String models = output + "/src/main/kotlin/model/";
+        final Path unionKt = Paths.get(models + "LyricsProvider.kt");
+        final Path tidalKt = Paths.get(models + "TidalLyricsProvider.kt");
+        final Path thirdPartyKt = Paths.get(models + "ThirdPartyLyricsProvider.kt");
+
+        // union: sealed interface read by a serializer keyed on "source", not on "type"
+        TestUtils.assertFileContains(unionKt,
+                "@Serializable(with = LyricsProviderSerializer::class)",
+                "sealed interface LyricsProvider",
+                "element.jsonObject[\"source\"]",
+                "\"TIDAL\" -> TidalLyricsProvider.serializer()",
+                "\"THIRD_PARTY\" -> ThirdPartyLyricsProvider.serializer()");
+        TestUtils.assertFileNotContains(unionKt, "@Polymorphic");
+        // members: discriminator stays a regular property typed by the member's own enum
+        TestUtils.assertFileContains(tidalKt,
+                "@SerialName(value = \"source\") val source: TidalLyricsProvider.Source",
+                ") : LyricsProvider");
+        TestUtils.assertFileNotContains(tidalKt, "@Transient", "= \"\"");
+        TestUtils.assertFileContains(thirdPartyKt,
+                "@SerialName(value = \"source\") val source: ThirdPartyLyricsProvider.Source",
+                ") : LyricsProvider");
+        TestUtils.assertFileNotContains(thirdPartyKt, "@Transient");
+        // property typed as the union resolves via the contextual serializer
+        TestUtils.assertFileContains(Paths.get(models + "LyricsAttributes.kt"),
+                "@Contextual @SerialName(value = \"provider\") val provider: LyricsProvider?");
+        TestUtils.assertFileContains(Paths.get(models + "Utils.kt"),
+                "contextual(LyricsProvider::class, LyricsProviderSerializer)");
+    }
+
+    @Test
     public void testCompanionObjectAdditionalProperty() {
         final KotlinClientCodegen codegen = new KotlinClientCodegen();
 
