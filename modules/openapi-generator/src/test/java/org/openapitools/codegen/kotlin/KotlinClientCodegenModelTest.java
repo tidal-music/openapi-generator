@@ -1054,6 +1054,36 @@ public class KotlinClientCodegenModelTest {
     }
 
     @Test
+    public void transientEnumDiscriminatorDefaultsToEnumConstant() throws IOException {
+        File output = Files.createTempDirectory("test").toFile();
+        output.deleteOnExit();
+
+        final CodegenConfigurator configurator = new CodegenConfigurator()
+                .setGeneratorName("kotlin")
+                .setAdditionalProperties(new HashMap<>() {{
+                    put(CodegenConstants.MODEL_PACKAGE, "model");
+                    put(SERIALIZATION_LIBRARY, "kotlinx_serialization");
+                    put("enumUnknownDefaultCase", true);
+                }})
+                .setInputSpec("src/test/resources/3_0/kotlin/transient-enum-discriminator.yaml")
+                .setOutputDir(output.getAbsolutePath().replace("\\", "/"));
+
+        final ClientOptInput clientOptInput = configurator.toClientOptInput();
+        new DefaultGenerator().opts(clientOptInput).generate();
+
+        final String models = output + "/src/main/kotlin/model/";
+        // single-value enum discriminator: default is the enum constant, not a String
+        final Path albumsKt = Paths.get(models + "AlbumsResourceObject.kt");
+        TestUtils.assertFileContains(albumsKt,
+                "val type: AlbumsResourceObject.Type = AlbumsResourceObject.Type.albums",
+                ") : IncludedInner");
+        TestUtils.assertFileNotContains(albumsKt, "= \"\"");
+        // plain string discriminator keeps the "" default
+        TestUtils.assertFileContains(Paths.get(models + "ArtistsResourceObject.kt"),
+                "val type: kotlin.String = \"\"");
+    }
+
+    @Test
     public void testCompanionObjectAdditionalProperty() {
         final KotlinClientCodegen codegen = new KotlinClientCodegen();
 
