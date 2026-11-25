@@ -1,0 +1,40 @@
+openapi: 3.0.1
+info:
+  title: Shared-schema oneOf whose members type the "type" discriminator as a single-value enum
+  version: 1.0.0
+paths: {}
+components:
+  schemas:
+    Included:
+      type: array
+      items:
+        discriminator:
+          propertyName: type
+          mapping:
+            albums: '#/components/schemas/Albums_Resource_Object'
+            artists: '#/components/schemas/Artists_Resource_Object'
+        oneOf:
+          - $ref: '#/components/schemas/Albums_Resource_Object'
+          - $ref: '#/components/schemas/Artists_Resource_Object'
+    Albums_Resource_Object:
+      type: object
+      required: [id, type]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [albums]
+    Artists_Resource_Object:
+      type: object
+      required: [id, type]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+    Albums_Multi_Resource_Data_Document:
+      type: object
+      properties:
+        included:
+          $ref: '#/components/schemas/Included'
